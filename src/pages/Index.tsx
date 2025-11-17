@@ -540,7 +540,7 @@ const Index = () => {
 
                               return match ? (
                                 <SyntaxHighlighter
-                                  // @ts-ignore
+                                  // @ts-expect-error - SyntaxHighlighter type definition issue
                                   style={oneDark}
                                   language={match[1]}
                                   PreTag="div"
@@ -575,7 +575,7 @@ const Index = () => {
 
                           return match ? (
                             <SyntaxHighlighter
-                              // @ts-ignore
+                              // @ts-expect-error - SyntaxHighlighter type definition issue
                               style={oneDark}
                               language={match[1]}
                               PreTag="div"
