@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Favicon Options - Choose Your Favorite</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #1f2937;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #6b7280;
+            margin-bottom: 40px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        .option {
+            text-align: center;
+            padding: 20px;
+            border: 3px solid transparent;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .option:hover {
+            border-color: #3b82f6;
+            background: #eff6ff;
+            transform: translateY(-5px);
+        }
+        .option img {
+            width: 120px;
+            height: 120px;
+            margin-bottom: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .option h3 {
+            margin: 0;
+            color: #1f2937;
+            font-size: 18px;
+        }
+        .option p {
+            margin: 8px 0 0;
+            color: #6b7280;
+            font-size: 14px;
+        }
+        .instructions {
+            background: #f3f4f6;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 30px;
+        }
+        .instructions h3 {
+            margin-top: 0;
+            color: #1f2937;
+        }
+        .instructions code {
+            background: #1f2937;
+            color: #10b981;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .color-tag {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+        .indigo { background: #eef2ff; color: #4f46e5; }
+        .green { background: #d1fae5; color: #059669; }
+        .blue { background: #dbeafe; color: #1d4ed8; }
+        .purple { background: #ede9fe; color: #6d28d9; }
+        .teal { background: #ccfbf1; color: #0d9488; }
+        .orange { background: #fed7aa; color: #d97706; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 Choose Your Favicon</h1>
+        <p class="subtitle">Click on your favorite design to copy the filename</p>
+        
+        <div class="grid">
+            <div class="option" onclick="selectFavicon('favicon-option1.svg')">
+                <img src="favicon-option1.svg" alt="Option 1">
+                <h3>Option 1</h3>
+                <p>Minimalist Document</p>
+                <span class="color-tag indigo">Indigo</span>
+            </div>
+            
+            <div class="option" onclick="selectFavicon('favicon-option2.svg')">
+                <img src="favicon-option2.svg" alt="Option 2">
+                <h3>Option 2</h3>
+                <p>Bold MD Letters</p>
+                <span class="color-tag green">Green</span>
+            </div>
+            
+            <div class="option" onclick="selectFavicon('favicon-option3.svg')">
+                <img src="favicon-option3.svg" alt="Option 3">
+                <h3>Option 3</h3>
+                <p>File with Chevrons</p>
+                <span class="color-tag blue">Blue</span>
+            </div>
+            
+            <div class="option" onclick="selectFavicon('favicon-option4.svg')">
+                <img src="favicon-option4.svg" alt="Option 4">
+                <h3>Option 4</h3>
+                <p>Geometric M</p>
+                <span class="color-tag purple">Purple</span>
+            </div>
+            
+            <div class="option" onclick="selectFavicon('favicon-option5.svg')">
+                <img src="favicon-option5.svg" alt="Option 5">
+                <h3>Option 5</h3>
+                <p>Layered Documents</p>
+                <span class="color-tag teal">Teal</span>
+            </div>
+            
+            <div class="option" onclick="selectFavicon('favicon-option6.svg')">
+                <img src="favicon-option6.svg" alt="Option 6">
+                <h3>Option 6</h3>
+                <p>Pencil & Document</p>
+                <span class="color-tag orange">Orange</span>
+            </div>
+        </div>
+        
+        <div class="instructions">
+            <h3>📋 How to Apply Your Choice</h3>
+            <p>Once you've chosen your favorite, simply rename that file to <code>favicon.svg</code></p>
+            <p style="margin-top: 15px; font-size: 14px; color: #6b7280;">
+                For example, if you like Option 3, rename <code>favicon-option3.svg</code> to <code>favicon.svg</code>
+            </p>
+        </div>
+    </div>
+    
+    <script>
+        function selectFavicon(filename) {
+            alert('You selected: ' + filename + '\n\nRename this file to "favicon.svg" to use it!');
+        }
+    </script>
+</body>
+</html>
+

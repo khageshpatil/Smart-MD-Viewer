@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Option 6: Pencil & Document -->
+  <defs>
+    <linearGradient id="grad6" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#d97706;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect x="5" y="5" width="90" height="90" rx="20" fill="url(#grad6)"/>
+  <!-- Document -->
+  <rect x="22" y="25" width="45" height="55" rx="4" fill="white" opacity="0.95"/>
+  <line x1="28" y1="35" x2="55" y2="35" stroke="#d97706" stroke-width="2" stroke-linecap="round"/>
+  <line x1="28" y1="45" x2="52" y2="45" stroke="#d97706" stroke-width="2" stroke-linecap="round"/>
+  <line x1="28" y1="55" x2="48" y2="55" stroke="#d97706" stroke-width="2" stroke-linecap="round"/>
+  <!-- Pencil -->
+  <rect x="55" y="50" width="20" height="8" rx="1" fill="#1f2937" transform="rotate(45 65 54)"/>
+  <polygon points="65,70 61,74 70,74" fill="#1f2937"/>
+</svg>
+
