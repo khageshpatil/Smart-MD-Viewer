@@ -3,10 +3,11 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
 // https://vitejs.dev/config/
-export default defineConfig(() => ({
+export default defineConfig(({ mode }) => ({
   // Set base to repository name for GitHub Pages
   // For custom domain or root deployment, set base: '/'
-  base: process.env.GITHUB_ACTIONS ? '/Smart-md-viewer/' : '/',
+  // Use repository name in production, root in development
+  base: mode === 'production' ? '/Smart-MD-Viewer/' : '/',
   server: {
     host: "::",
     port: 8080,
