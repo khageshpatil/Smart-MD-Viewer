@@ -1,0 +1,140 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 215 25% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 15%;
+
+    --primary: 215 90% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 17% 95%;
+    --secondary-foreground: 215 25% 15%;
+
+    --muted: 210 17% 95%;
+    --muted-foreground: 215 15% 45%;
+
+    --accent: 215 90% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 85% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 215 20% 88%;
+    --input: 215 20% 88%;
+    --ring: 215 90% 50%;
+
+    --radius: 0.5rem;
+
+    --tab-active: 0 0% 100%;
+    --tab-inactive: 210 17% 95%;
+    --tab-hover: 210 17% 92%;
+
+    --code-bg: 215 25% 12%;
+    --code-text: 210 20% 98%;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 215 25% 15%;
+    --sidebar-primary: 215 90% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 17% 95%;
+    --sidebar-accent-foreground: 215 25% 15%;
+    --sidebar-border: 215 20% 88%;
+    --sidebar-ring: 215 90% 50%;
+
+    --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-fast: all 0.15s ease-out;
+  }
+
+  .dark {
+    --background: 215 25% 12%;
+    --foreground: 210 20% 98%;
+
+    --card: 215 22% 15%;
+    --card-foreground: 210 20% 98%;
+
+    --popover: 215 22% 15%;
+    --popover-foreground: 210 20% 98%;
+
+    --primary: 215 90% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 215 20% 20%;
+    --secondary-foreground: 210 20% 98%;
+
+    --muted: 215 20% 20%;
+    --muted-foreground: 215 15% 65%;
+
+    --accent: 215 90% 55%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 85% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 215 20% 25%;
+    --input: 215 20% 25%;
+    --ring: 215 90% 55%;
+
+    --tab-active: 215 22% 15%;
+    --tab-inactive: 215 20% 20%;
+    --tab-hover: 215 20% 23%;
+
+    --code-bg: 215 25% 8%;
+    --code-text: 210 20% 98%;
+
+    --sidebar-background: 215 22% 15%;
+    --sidebar-foreground: 210 20% 98%;
+    --sidebar-primary: 215 90% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 20% 20%;
+    --sidebar-accent-foreground: 210 20% 98%;
+    --sidebar-border: 215 20% 25%;
+    --sidebar-ring: 215 90% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  .markdown-preview {
+    @apply prose prose-slate max-w-none;
+    @apply prose-headings:font-bold prose-headings:tracking-tight;
+    @apply prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl;
+    @apply prose-p:leading-relaxed prose-p:text-foreground;
+    @apply prose-a:text-primary prose-a:no-underline hover:prose-a:underline;
+    @apply prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm;
+    @apply prose-pre:bg-code-bg prose-pre:text-code-text;
+    @apply prose-img:rounded-lg prose-img:shadow-md;
+  }
+
+  .dark .markdown-preview {
+    @apply prose-invert;
+  }
+
+  .mermaid-container {
+    @apply bg-card rounded-lg p-4 border border-border;
+  }
+
+  .mermaid {
+    @apply flex justify-center items-center;
+  }
+}
