@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Network, Download, FileText, Save, Trash2, Keyboard } from "lucide-react";
+import { Network, Download, FileText, Save, Trash2, Keyboard, ZoomIn, ZoomOut, Maximize2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "next-themes";
 import { Textarea } from "@/components/ui/textarea";
@@ -141,8 +141,13 @@ export function MermaidSandbox({ open, onOpenChange }: MermaidSandboxProps) {
   const [saveName, setSaveName] = useState("");
   const [showSaveInput, setShowSaveInput] = useState(false);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(100);
+  const [isPanning, setIsPanning] = useState(false);
+  const [panPosition, setPanPosition] = useState({ x: 0, y: 0 });
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const { theme } = useTheme();
   const previewRef = useRef<HTMLDivElement>(null);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
   const renderTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load saved templates from localStorage
@@ -510,12 +515,12 @@ export function MermaidSandbox({ open, onOpenChange }: MermaidSandboxProps) {
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-6xl h-[80vh]">
+        <DialogContent className="max-w-[95vw] h-[90vh] w-full">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Network className="w-5 h-5" />
-                Mermaid Sandbox
+                Mermaid Diagram Editor
               </div>
               <Button
                 variant="ghost"
@@ -528,7 +533,7 @@ export function MermaidSandbox({ open, onOpenChange }: MermaidSandboxProps) {
               </Button>
             </DialogTitle>
             <DialogDescription>
-              Create and export beautiful diagrams using Mermaid syntax
+              Professional diagram viewer and editor with zoom, pan, and export capabilities
             </DialogDescription>
           </DialogHeader>
 
@@ -664,8 +669,60 @@ export function MermaidSandbox({ open, onOpenChange }: MermaidSandboxProps) {
           {/* Right Panel: Preview */}
           <div className="flex-1 flex flex-col min-w-0 border-l border-border pl-4">
             <div className="mb-2 flex items-center justify-between">
-              <div className="text-sm font-medium text-muted-foreground">
-                Preview
+              <div className="flex items-center gap-3">
+                <div className="text-sm font-medium text-muted-foreground">
+                  Preview
+                </div>
+                <div className="flex items-center gap-1 bg-muted px-2 py-1 rounded-md">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => setZoomLevel(Math.max(25, zoomLevel - 25))}
+                    disabled={zoomLevel <= 25}
+                    title="Zoom Out"
+                  >
+                    <ZoomOut className="w-3 h-3" />
+                  </Button>
+                  <span className="text-xs font-mono min-w-[3rem] text-center">{zoomLevel}%</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => setZoomLevel(Math.min(200, zoomLevel + 25))}
+                    disabled={zoomLevel >= 200}
+                    title="Zoom In"
+                  >
+                    <ZoomIn className="w-3 h-3" />
+                  </Button>
+                  <div className="h-4 w-px bg-border mx-1" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => {
+                      setZoomLevel(100);
+                      setPanPosition({ x: 0, y: 0 });
+                    }}
+                    title="Reset View"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => {
+                      setZoomLevel(100);
+                      if (previewContainerRef.current) {
+                        previewContainerRef.current.requestFullscreen?.();
+                      }
+                    }}
+                    title="Fullscreen"
+                  >
+                    <Maximize2 className="w-3 h-3" />
+                  </Button>
+                </div>
               </div>
               <div className="flex gap-2">
                 <Button
@@ -675,7 +732,7 @@ export function MermaidSandbox({ open, onOpenChange }: MermaidSandboxProps) {
                   disabled={!svgContent}
                 >
                   <Download className="w-4 h-4 mr-2" />
-                  Export PNG
+                  PNG
                 </Button>
                 <Button
                   variant="outline"
@@ -684,18 +741,57 @@ export function MermaidSandbox({ open, onOpenChange }: MermaidSandboxProps) {
                   disabled={!svgContent}
                 >
                   <Download className="w-4 h-4 mr-2" />
-                  Export JPG
+                  JPG
                 </Button>
               </div>
             </div>
-            <div className="flex-1 border border-border rounded-md p-4 overflow-auto bg-muted/30 flex items-center justify-center">
-              {error ? (
-                <div className="text-destructive text-sm">
-                  <p className="font-semibold mb-2">Error rendering diagram:</p>
-                  <pre className="text-xs">{error}</pre>
+            <div 
+              ref={previewContainerRef}
+              className="flex-1 border border-border rounded-md overflow-hidden bg-muted/30 relative"
+              onMouseDown={(e) => {
+                if (e.button === 0) {
+                  setIsPanning(true);
+                  setPanStart({ x: e.clientX - panPosition.x, y: e.clientY - panPosition.y });
+                }
+              }}
+              onMouseMove={(e) => {
+                if (isPanning) {
+                  setPanPosition({
+                    x: e.clientX - panStart.x,
+                    y: e.clientY - panStart.y
+                  });
+                }
+              }}
+              onMouseUp={() => setIsPanning(false)}
+              onMouseLeave={() => setIsPanning(false)}
+              onWheel={(e) => {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -10 : 10;
+                setZoomLevel(prev => Math.max(25, Math.min(200, prev + delta)));
+              }}
+              style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
+            >
+              <div 
+                className="absolute inset-0 flex items-center justify-center p-4"
+                style={{
+                  transform: `translate(${panPosition.x}px, ${panPosition.y}px) scale(${zoomLevel / 100})`,
+                  transformOrigin: 'center center',
+                  transition: isPanning ? 'none' : 'transform 0.2s ease-out'
+                }}
+              >
+                {error ? (
+                  <div className="text-destructive text-sm">
+                    <p className="font-semibold mb-2">Error rendering diagram:</p>
+                    <pre className="text-xs">{error}</pre>
+                  </div>
+                ) : (
+                  <div ref={previewRef} className="mermaid-preview" />
+                )}
+              </div>
+              {!error && svgContent && (
+                <div className="absolute bottom-2 left-2 text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded">
+                  💡 Drag to pan, scroll to zoom
                 </div>
-              ) : (
-                <div ref={previewRef} className="mermaid-preview" />
               )}
             </div>
           </div>

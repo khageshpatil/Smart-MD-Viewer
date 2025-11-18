@@ -389,7 +389,7 @@ const Index = () => {
             <ThemeToggle />
             <Button variant="outline" size="sm" onClick={() => setSandboxOpen(true)}>
               <Network className="w-4 h-4 mr-2" />
-              Mermaid Sandbox
+              Diagram Editor
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
