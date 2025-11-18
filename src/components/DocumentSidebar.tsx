@@ -99,6 +99,16 @@ export const DocumentSidebar = ({
     setPinnedDocs(pinned);
   };
 
+  // Auto-expand folder when active document is inside it
+  useEffect(() => {
+    if (activeDocumentId) {
+      const doc = documents.find(d => d.id === activeDocumentId);
+      if (doc?.folderId) {
+        setExpandedFolders(prev => new Set([...prev, doc.folderId!]));
+      }
+    }
+  }, [activeDocumentId, documents]);
+
   // Search functionality
   const filteredDocs = useMemo(async () => {
     if (searchQuery.trim()) {
@@ -180,9 +190,10 @@ export const DocumentSidebar = ({
             <ContextMenu>
               <ContextMenuTrigger>
                 <div
-                  className="flex items-center gap-2 px-3 py-2 hover:bg-sidebar-accent cursor-pointer rounded-md transition-colors"
+                  className="group flex items-center gap-2 px-3 py-2 hover:bg-sidebar-accent cursor-pointer rounded-md transition-colors"
                   style={{ paddingLeft: `${depth * 12 + 12}px` }}
                   onClick={() => toggleFolder(folder.id)}
+                  title="Right-click for options"
                 >
                   {isExpanded ? (
                     <ChevronDown className="w-4 h-4 text-sidebar-foreground/60" />
@@ -191,9 +202,14 @@ export const DocumentSidebar = ({
                   )}
                   <Folder className="w-4 h-4 text-sidebar-primary" />
                   <span className="text-sm flex-1 truncate text-sidebar-foreground">{folder.name}</span>
+                  <Plus className="w-3 h-3 text-sidebar-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
               </ContextMenuTrigger>
               <ContextMenuContent className="bg-popover border-border">
+                <ContextMenuItem onClick={() => onNewDocument(folder.id)}>
+                  <FileText className="w-4 h-4 mr-2" />
+                  New Document
+                </ContextMenuItem>
                 <ContextMenuItem onClick={() => onCreateFolder(folder.id)}>
                   <FolderPlus className="w-4 h-4 mr-2" />
                   New Subfolder
@@ -328,11 +344,44 @@ export const DocumentSidebar = ({
               <Folder className="w-4 h-4 text-sidebar-primary" />
               <span className="text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/80">My Documents</span>
             </div>
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onCreateFolder(null)}>
-              <FolderPlus className="w-3 h-3" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-6 w-6" 
+                onClick={() => onNewDocument(null)}
+                title="New Document"
+              >
+                <FileText className="w-3 h-3" />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-6 w-6" 
+                onClick={() => onCreateFolder(null)}
+                title="New Folder"
+              >
+                <FolderPlus className="w-3 h-3" />
+              </Button>
+            </div>
           </div>
-          {renderTree(fileTree)}
+          {fileTree.length === 0 ? (
+            <div className="px-3 py-8 text-center">
+              <FileText className="w-8 h-8 mx-auto mb-3 text-sidebar-foreground/40" />
+              <p className="text-sm text-sidebar-foreground/60 mb-3">No documents yet</p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => onNewDocument(null)}
+                className="text-xs"
+              >
+                <Plus className="w-3 h-3 mr-1" />
+                Create your first document
+              </Button>
+            </div>
+          ) : (
+            renderTree(fileTree)
+          )}
         </div>
       </ScrollArea>
       </SidebarContent>
