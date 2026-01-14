@@ -283,7 +283,7 @@ export const TicketModal = ({
             <div className="flex-1 min-h-0 flex flex-col">
               <div className="flex items-center justify-between mb-1">
                 <Label>Description</Label>
-                <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)}>
+                <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "edit" | "preview")}>
                   <TabsList className="h-8">
                     <TabsTrigger value="edit" className="text-xs">
                       <Code className="w-3 h-3 mr-1" />
@@ -310,7 +310,7 @@ export const TicketModal = ({
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       components={{
-                        code({ node, inline, className, children, ...props }: any) {
+                        code({ inline, className, children, ...props }: React.ComponentPropsWithoutRef<"code"> & { inline?: boolean }) {
                           const match = /language-(\w+)/.exec(className || "");
                           return !inline && match ? (
                             <SyntaxHighlighter

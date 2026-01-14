@@ -31,6 +31,23 @@ export interface GitHubRepo {
   html_url: string;
 }
 
+interface GitHubAPIPR {
+  id: number;
+  number: number;
+  title: string;
+  html_url: string;
+  merged_at: string | null;
+  state: "open" | "closed";
+  user: {
+    login: string;
+  };
+  head: {
+    ref: string;
+  };
+  created_at: string;
+  updated_at: string;
+}
+
 /**
  * Generate random string for PKCE
  */
@@ -238,10 +255,10 @@ export const fetchPullRequests = async (
     throw new Error("Failed to fetch pull requests");
   }
 
-  const prs = await response.json();
+  const prs: GitHubAPIPR[] = await response.json();
 
   // Transform GitHub PR to our format
-  return prs.map((pr: any) => ({
+  return prs.map((pr) => ({
     id: String(pr.id),
     number: pr.number,
     title: pr.title,
@@ -335,7 +352,7 @@ export const searchRepositories = async (query: string): Promise<GitHubRepo[]> =
  * Parse GitHub PR URL to extract owner, repo, and PR number
  */
 export const parsePRUrl = (url: string): { owner: string; repo: string; number: number } | null => {
-  const regex = /github\.com\/([^\/]+)\/([^\/]+)\/pull\/(\d+)/;
+  const regex = /github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/;
   const match = url.match(regex);
   
   if (!match) return null;

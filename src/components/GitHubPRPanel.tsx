@@ -3,7 +3,7 @@
  * Panel for browsing and linking GitHub PRs to tickets
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,10 +58,36 @@ export const GitHubPRPanel = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "open" | "closed" | "merged">("all");
 
+  const loadRepos = useCallback(async () => {
+    setLoading(true);
+    try {
+      const repoList = await onFetchRepos();
+      setRepos(repoList);
+    } catch (error) {
+      console.error("Failed to load repositories:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [onFetchRepos]);
+
+  const loadPRs = useCallback(async () => {
+    if (!selectedRepo) return;
+
+    setLoading(true);
+    try {
+      const prList = await onFetchPRs(selectedRepo.owner.login, selectedRepo.name);
+      setPRs(prList);
+    } catch (error) {
+      console.error("Failed to load PRs:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedRepo, onFetchPRs]);
+
   // Load repositories on mount
   useEffect(() => {
     loadRepos();
-  }, []);
+  }, [loadRepos]);
 
   // Filter PRs based on search and status
   useEffect(() => {
@@ -84,32 +110,6 @@ export const GitHubPRPanel = ({
     setFilteredPRs(filtered);
   }, [prs, searchQuery, statusFilter]);
 
-  const loadRepos = async () => {
-    setLoading(true);
-    try {
-      const repoList = await onFetchRepos();
-      setRepos(repoList);
-    } catch (error) {
-      console.error("Failed to load repositories:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadPRs = async () => {
-    if (!selectedRepo) return;
-
-    setLoading(true);
-    try {
-      const prList = await onFetchPRs(selectedRepo.owner.login, selectedRepo.name);
-      setPRs(prList);
-    } catch (error) {
-      console.error("Failed to load PRs:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleRepoSelect = (repoFullName: string) => {
     const repo = repos.find((r) => r.full_name === repoFullName);
     setSelectedRepo(repo || null);
@@ -123,7 +123,7 @@ export const GitHubPRPanel = ({
     if (selectedRepo) {
       loadPRs();
     }
-  }, [selectedRepo]);
+  }, [selectedRepo, loadPRs]);
 
   return (
     <Card>
@@ -181,7 +181,7 @@ export const GitHubPRPanel = ({
                 </div>
                 <Select
                   value={statusFilter}
-                  onValueChange={(v) => setStatusFilter(v as any)}
+                  onValueChange={(v) => setStatusFilter(v as "all" | "open" | "closed" | "merged")}
                 >
                   <SelectTrigger className="w-[120px]">
                     <SelectValue />
