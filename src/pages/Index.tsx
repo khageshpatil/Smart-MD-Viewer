@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { FileText, Eye, Code, Download, Network, Archive, Upload, Menu } from "lucide-react";
+import { FileText, Eye, Code, Download, Network, Archive, Upload, Menu, Kanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -43,6 +43,7 @@ import {
 } from "@/lib/indexedDB";
 import JSZip from "jszip";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "react-router-dom";
 
 const Index = () => {
   const [activeDocument, setActiveDocument] = useState<Document | null>(null);
@@ -387,6 +388,12 @@ const Index = () => {
 
           <div className="ml-auto flex items-center gap-2">
             <ThemeToggle />
+            <Link to="/tickets">
+              <Button variant="outline" size="sm">
+                <Kanban className="w-4 h-4 mr-2" />
+                Tickets
+              </Button>
+            </Link>
             <Button variant="outline" size="sm" onClick={() => setSandboxOpen(true)}>
               <Network className="w-4 h-4 mr-2" />
               Diagram Editor

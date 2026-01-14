@@ -1,5 +1,5 @@
 const DB_NAME = "SmartMDWorkspace";
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Incremented for tickets store
 const STORE_NAME = "documents";
 
 export interface Document {
@@ -20,9 +20,40 @@ export interface Folder {
   createdAt: number;
 }
 
+export type TicketStatus = "todo" | "in-progress" | "in-review" | "done";
+export type TicketPriority = "low" | "medium" | "high";
+
+export interface Ticket {
+  id: string;
+  title: string;
+  description: string; // markdown supported
+  status: TicketStatus;
+  priority: TicketPriority;
+  tags: string[];
+  assignee: string | null;
+  linkedPRs: string[]; // GitHub PR URLs or IDs
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface GitHubPR {
+  id: string;
+  number: number;
+  title: string;
+  url: string;
+  status: "open" | "closed" | "merged";
+  author: string;
+  branch: string;
+  repoFullName: string; // owner/repo
+  createdAt: string;
+  updatedAt: string;
+  mergedAt?: string;
+}
+
 interface DBSchema {
   documents: Document;
   folders: Folder;
+  tickets: Ticket;
 }
 
 let db: IDBDatabase | null = null;
@@ -58,6 +89,17 @@ export const initDB = (): Promise<IDBDatabase> => {
       if (!database.objectStoreNames.contains("folders")) {
         const folderStore = database.createObjectStore("folders", { keyPath: "id" });
         folderStore.createIndex("parentId", "parentId", { unique: false });
+      }
+
+      // Create tickets store
+      if (!database.objectStoreNames.contains("tickets")) {
+        const ticketStore = database.createObjectStore("tickets", { keyPath: "id" });
+        ticketStore.createIndex("status", "status", { unique: false });
+        ticketStore.createIndex("priority", "priority", { unique: false });
+        ticketStore.createIndex("tags", "tags", { unique: false, multiEntry: true });
+        ticketStore.createIndex("assignee", "assignee", { unique: false });
+        ticketStore.createIndex("updatedAt", "updatedAt", { unique: false });
+        ticketStore.createIndex("createdAt", "createdAt", { unique: false });
       }
     };
   });
@@ -247,4 +289,118 @@ export const importWorkspace = async (data: { documents: Document[]; folders: Fo
       request.onerror = () => reject(request.error);
     });
   }
+};
+
+// ============================================
+// TICKET OPERATIONS
+// ============================================
+
+export const createTicket = async (ticket: Ticket): Promise<void> => {
+  const database = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(["tickets"], "readwrite");
+    const store = transaction.objectStore("tickets");
+    const request = store.add(ticket);
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+};
+
+export const updateTicket = async (ticket: Ticket): Promise<void> => {
+  const database = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(["tickets"], "readwrite");
+    const store = transaction.objectStore("tickets");
+    const request = store.put(ticket);
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+};
+
+export const getTicket = async (id: string): Promise<Ticket | undefined> => {
+  const database = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(["tickets"], "readonly");
+    const store = transaction.objectStore("tickets");
+    const request = store.get(id);
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+export const getAllTickets = async (): Promise<Ticket[]> => {
+  const database = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(["tickets"], "readonly");
+    const store = transaction.objectStore("tickets");
+    const request = store.getAll();
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+export const getTicketsByStatus = async (status: TicketStatus): Promise<Ticket[]> => {
+  const database = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(["tickets"], "readonly");
+    const store = transaction.objectStore("tickets");
+    const index = store.index("status");
+    const request = index.getAll(status);
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+export const getTicketsByPriority = async (priority: TicketPriority): Promise<Ticket[]> => {
+  const database = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(["tickets"], "readonly");
+    const store = transaction.objectStore("tickets");
+    const index = store.index("priority");
+    const request = index.getAll(priority);
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+export const getTicketsByTag = async (tag: string): Promise<Ticket[]> => {
+  const database = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(["tickets"], "readonly");
+    const store = transaction.objectStore("tickets");
+    const index = store.index("tags");
+    const request = index.getAll(tag);
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+export const deleteTicket = async (id: string): Promise<void> => {
+  const database = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(["tickets"], "readwrite");
+    const store = transaction.objectStore("tickets");
+    const request = store.delete(id);
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+};
+
+export const searchTickets = async (query: string): Promise<Ticket[]> => {
+  const tickets = await getAllTickets();
+  const lowerQuery = query.toLowerCase();
+  return tickets.filter(
+    (ticket) =>
+      ticket.title.toLowerCase().includes(lowerQuery) ||
+      ticket.description.toLowerCase().includes(lowerQuery) ||
+      ticket.tags.some(tag => tag.toLowerCase().includes(lowerQuery))
+  );
 };
