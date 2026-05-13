@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { FileText, Eye, Code, Download, Network, Archive, Upload, Menu, Kanban } from "lucide-react";
+import { FileText, Eye, Code, Download, Network, Archive, Upload, Kanban, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -44,6 +44,18 @@ import {
 import JSZip from "jszip";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
+import {
+  SharedDocumentPayload,
+  EncryptedShareEnvelope,
+  buildSecureShareLink,
+  createEncryptedShareEnvelope,
+  createEncryptedShareFileBlob,
+  decodeEnvelopeFromShareLink,
+  decryptEncryptedShareEnvelope,
+  parsePayloadFromLocationHash,
+  readEncryptedShareEnvelopeFromFile,
+  encodeEnvelopeForShareLink,
+} from "@/lib/secureShare";
 
 const Index = () => {
   const [activeDocument, setActiveDocument] = useState<Document | null>(null);
@@ -56,10 +68,21 @@ const Index = () => {
   const titleInputRef = useRef<HTMLInputElement>(null);
   const [refreshSidebar, setRefreshSidebar] = useState(0);
   const saveTimeoutRef = useRef<NodeJS.Timeout>();
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [sharePassphrase, setSharePassphrase] = useState("");
+  const [importPassphrase, setImportPassphrase] = useState("");
+  const [pendingImportEnvelope, setPendingImportEnvelope] = useState<EncryptedShareEnvelope | null>(null);
+  const [importPreview, setImportPreview] = useState<SharedDocumentPayload | null>(null);
+  const hasProcessedSharedHashRef = useRef(false);
   const { toast } = useToast();
 
   // Initialize mermaid and IndexedDB
   useEffect(() => {
+    if (hasProcessedSharedHashRef.current) {
+      return;
+    }
+    hasProcessedSharedHashRef.current = true;
+
     if (!mermaidInitialized.current) {
       mermaid.initialize({
         startOnLoad: true,
@@ -69,7 +92,26 @@ const Index = () => {
       mermaidInitialized.current = true;
     }
     initDB();
-  }, []);
+
+    const sharedPayload = parsePayloadFromLocationHash(window.location.hash);
+    if (sharedPayload) {
+      try {
+        const envelope = decodeEnvelopeFromShareLink(sharedPayload);
+        setPendingImportEnvelope(envelope);
+        setShareDialogOpen(true);
+        toast({
+          title: "Shared link detected",
+          description: "Enter the import passphrase to preview and save this document.",
+        });
+      } catch {
+        toast({
+          title: "Invalid shared link",
+          description: "The shared payload is malformed or unsupported.",
+          variant: "destructive",
+        });
+      }
+    }
+  }, [toast]);
 
   // Auto-save with debounce
   const autoSave = useCallback((doc: Document) => {
@@ -374,6 +416,185 @@ const Index = () => {
     input.click();
   };
 
+  const clearSharedPayloadFromUrl = () => {
+    if (window.location.hash.includes("payload=")) {
+      window.history.replaceState({}, "", `${window.location.pathname}${window.location.search}`);
+    }
+  };
+
+  const ensurePassphrase = (passphrase: string) => {
+    if (passphrase.trim().length < 8) {
+      throw new Error("Use a passphrase with at least 8 characters.");
+    }
+  };
+
+  const handleCopySecureLink = async () => {
+    if (!activeDocument) {
+      toast({
+        title: "No active document",
+        description: "Open a document before generating a share link.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      ensurePassphrase(sharePassphrase);
+      const envelope = await createEncryptedShareEnvelope(activeDocument, sharePassphrase);
+      const payload = encodeEnvelopeForShareLink(envelope);
+      const link = buildSecureShareLink(payload);
+
+      if (link.length > 7000) {
+        toast({
+          title: "Link too large",
+          description: "Use encrypted file share for large documents.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      await navigator.clipboard.writeText(link);
+      toast({
+        title: "Secure link copied",
+        description: "Share the link and passphrase separately.",
+      });
+    } catch (error) {
+      toast({
+        title: "Failed to create secure link",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDownloadEncryptedShareFile = async () => {
+    if (!activeDocument) {
+      toast({
+        title: "No active document",
+        description: "Open a document before exporting share file.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      ensurePassphrase(sharePassphrase);
+      const envelope = await createEncryptedShareEnvelope(activeDocument, sharePassphrase);
+      const blob = createEncryptedShareFileBlob(envelope);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${activeDocument.title || "document"}.smdshare`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Encrypted share file downloaded",
+        description: "Share the file and passphrase separately.",
+      });
+    } catch (error) {
+      toast({
+        title: "Failed to export encrypted file",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleImportEncryptedShareFile = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".smdshare,.json";
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      try {
+        const envelope = await readEncryptedShareEnvelopeFromFile(file);
+        setPendingImportEnvelope(envelope);
+        setImportPreview(null);
+        setShareDialogOpen(true);
+        toast({
+          title: "Encrypted share file loaded",
+          description: "Enter passphrase to decrypt and preview.",
+        });
+      } catch (error) {
+        toast({
+          title: "Invalid share file",
+          description: error instanceof Error ? error.message : "Please check the file.",
+          variant: "destructive",
+        });
+      }
+    };
+    input.click();
+  };
+
+  const handlePreviewImportedShare = async () => {
+    if (!pendingImportEnvelope) {
+      toast({
+        title: "Nothing to import",
+        description: "Load a shared link or .smdshare file first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const payload = await decryptEncryptedShareEnvelope(pendingImportEnvelope, importPassphrase);
+      setImportPreview(payload);
+      toast({
+        title: "Preview ready",
+        description: "Review the document and save it to your local workspace.",
+      });
+    } catch (error) {
+      toast({
+        title: "Failed to decrypt share",
+        description: error instanceof Error ? error.message : "Please verify passphrase and payload.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSaveImportedDocument = async () => {
+    if (!importPreview) {
+      toast({
+        title: "No preview to save",
+        description: "Decrypt and preview a shared document first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const now = Date.now();
+    const importedDocument: Document = {
+      id: `doc-${now}-${Math.random()}`,
+      title: importPreview.title.trim() || "Imported Document",
+      content: importPreview.content,
+      folderId: null,
+      tags: importPreview.tags,
+      isPinned: importPreview.isPinned,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await saveDocument(importedDocument);
+    setActiveDocument(importedDocument);
+    setViewMode("split");
+    setRefreshSidebar((prev) => prev + 1);
+    clearSharedPayloadFromUrl();
+    setPendingImportEnvelope(null);
+    setImportPreview(null);
+    setImportPassphrase("");
+    setShareDialogOpen(false);
+
+    toast({
+      title: "Imported successfully",
+      description: "The shared document is now saved in your local workspace.",
+    });
+  };
+
   return (
     <SidebarProvider>
       <div className="min-h-screen bg-background flex flex-col w-full">
@@ -517,6 +738,10 @@ const Index = () => {
                       <DropdownMenuItem onClick={exportAsWord}>Export as Word (.doc)</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
+                  <Button variant="outline" size="sm" onClick={() => setShareDialogOpen(true)}>
+                    <Share2 className="w-4 h-4 mr-2" />
+                    Share
+                  </Button>
                 </div>
               </div>
 
@@ -637,6 +862,95 @@ const Index = () => {
                 Cancel
               </Button>
               <Button onClick={handleSaveTag}>Add Tag</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Secure Share Dialog */}
+        <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
+          <DialogContent className="bg-card border-border max-w-xl">
+            <DialogHeader>
+              <DialogTitle>Secure Share (Local-First)</DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Create secure share</p>
+                <Input
+                  type="password"
+                  value={sharePassphrase}
+                  onChange={(e) => setSharePassphrase(e.target.value)}
+                  placeholder="Passphrase (min 8 characters)"
+                  className="bg-background border-input text-foreground"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Encryption is client-side only. Share the passphrase separately.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" onClick={handleCopySecureLink} disabled={!activeDocument}>
+                    Copy Secure Link
+                  </Button>
+                  <Button variant="outline" onClick={handleDownloadEncryptedShareFile} disabled={!activeDocument}>
+                    Download Encrypted File (.smdshare)
+                  </Button>
+                </div>
+                {!activeDocument && (
+                  <p className="text-xs text-muted-foreground">Open a document to enable sharing.</p>
+                )}
+              </div>
+
+              <div className="border-t border-border pt-4 space-y-2">
+                <p className="text-sm font-medium">Import secure share</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" onClick={handleImportEncryptedShareFile}>
+                    Import .smdshare File
+                  </Button>
+                </div>
+                <Input
+                  type="password"
+                  value={importPassphrase}
+                  onChange={(e) => setImportPassphrase(e.target.value)}
+                  placeholder="Import passphrase"
+                  className="bg-background border-input text-foreground"
+                />
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={handlePreviewImportedShare} disabled={!pendingImportEnvelope}>
+                    Decrypt & Preview
+                  </Button>
+                  {pendingImportEnvelope && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        setPendingImportEnvelope(null);
+                        setImportPreview(null);
+                        clearSharedPayloadFromUrl();
+                      }}
+                    >
+                      Clear Loaded Share
+                    </Button>
+                  )}
+                </div>
+                {importPreview && (
+                  <Card className="p-3 bg-muted/40 border-border">
+                    <p className="font-medium truncate">{importPreview.title || "Imported Document"}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {importPreview.content.length} chars • {importPreview.tags.length} tags
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2 line-clamp-3 whitespace-pre-wrap">
+                      {importPreview.content.slice(0, 260)}
+                    </p>
+                  </Card>
+                )}
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShareDialogOpen(false)}>
+                Close
+              </Button>
+              <Button onClick={handleSaveImportedDocument} disabled={!importPreview}>
+                Save as New Document
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
