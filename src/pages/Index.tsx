@@ -57,6 +57,9 @@ import {
   encodeEnvelopeForShareLink,
 } from "@/lib/secureShare";
 
+const MAX_SHARE_LINK_LENGTH = 7000; // Conservative URL limit to avoid browser/client truncation.
+const SHARE_PREVIEW_MAX_CHARS = 260;
+
 const Index = () => {
   const [activeDocument, setActiveDocument] = useState<Document | null>(null);
   const [viewMode, setViewMode] = useState<"preview" | "code" | "split">("split");
@@ -78,11 +81,6 @@ const Index = () => {
 
   // Initialize mermaid and IndexedDB
   useEffect(() => {
-    if (hasProcessedSharedHashRef.current) {
-      return;
-    }
-    hasProcessedSharedHashRef.current = true;
-
     if (!mermaidInitialized.current) {
       mermaid.initialize({
         startOnLoad: true,
@@ -93,22 +91,25 @@ const Index = () => {
     }
     initDB();
 
-    const sharedPayload = parsePayloadFromLocationHash(window.location.hash);
-    if (sharedPayload) {
-      try {
-        const envelope = decodeEnvelopeFromShareLink(sharedPayload);
-        setPendingImportEnvelope(envelope);
-        setShareDialogOpen(true);
-        toast({
-          title: "Shared link detected",
-          description: "Enter the import passphrase to preview and save this document.",
-        });
-      } catch {
-        toast({
-          title: "Invalid shared link",
-          description: "The shared payload is malformed or unsupported.",
-          variant: "destructive",
-        });
+    if (!hasProcessedSharedHashRef.current) {
+      hasProcessedSharedHashRef.current = true;
+      const sharedPayload = parsePayloadFromLocationHash(window.location.hash);
+      if (sharedPayload) {
+        try {
+          const envelope = decodeEnvelopeFromShareLink(sharedPayload);
+          setPendingImportEnvelope(envelope);
+          setShareDialogOpen(true);
+          toast({
+            title: "Shared link detected",
+            description: "Enter the import passphrase to preview and save this document.",
+          });
+        } catch {
+          toast({
+            title: "Invalid shared link",
+            description: "The shared payload is malformed or unsupported.",
+            variant: "destructive",
+          });
+        }
       }
     }
   }, [toast]);
@@ -424,7 +425,7 @@ const Index = () => {
 
   const ensurePassphrase = (passphrase: string) => {
     if (passphrase.trim().length < 8) {
-      throw new Error("Use a passphrase with at least 8 characters.");
+      throw new Error("Passphrase must contain at least 8 characters (excluding leading/trailing whitespace).");
     }
   };
 
@@ -444,7 +445,7 @@ const Index = () => {
       const payload = encodeEnvelopeForShareLink(envelope);
       const link = buildSecureShareLink(payload);
 
-      if (link.length > 7000) {
+      if (link.length > MAX_SHARE_LINK_LENGTH) {
         toast({
           title: "Link too large",
           description: "Use encrypted file share for large documents.",
@@ -569,7 +570,7 @@ const Index = () => {
 
     const now = Date.now();
     const importedDocument: Document = {
-      id: `doc-${now}-${Math.random()}`,
+      id: `doc-${crypto.randomUUID()}`,
       title: importPreview.title.trim() || "Imported Document",
       content: importPreview.content,
       folderId: null,
@@ -937,7 +938,7 @@ const Index = () => {
                       {importPreview.content.length} chars • {importPreview.tags.length} tags
                     </p>
                     <p className="text-xs text-muted-foreground mt-2 line-clamp-3 whitespace-pre-wrap">
-                      {importPreview.content.slice(0, 260)}
+                      {importPreview.content.slice(0, SHARE_PREVIEW_MAX_CHARS)}
                     </p>
                   </Card>
                 )}

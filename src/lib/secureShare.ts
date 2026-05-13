@@ -2,7 +2,8 @@ import { Document } from "@/lib/indexedDB";
 
 const SHARE_FORMAT = "smart-md-share";
 const SHARE_VERSION = 1;
-const PBKDF2_ITERATIONS = 250_000;
+// OWASP guidance for PBKDF2-SHA256; may be tuned if UX indicates unacceptable latency.
+const PBKDF2_ITERATIONS = 600_000;
 
 export interface SharedDocumentPayload {
   version: number;
@@ -32,10 +33,7 @@ const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
 const toBase64 = (bytes: Uint8Array) => {
-  let binary = "";
-  bytes.forEach((b) => {
-    binary += String.fromCharCode(b);
-  });
+  const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("");
   return btoa(binary);
 };
 
@@ -67,7 +65,8 @@ const tryCompress = async (bytes: Uint8Array): Promise<{ bytes: Uint8Array; comp
     return { bytes, compressed: false };
   }
 
-  const compressed = await arrayBufferFromStream(new Blob([bytes]).stream().pipeThrough(new CompressionStream("gzip")));
+  const compressedStream = new Blob([bytes]).stream().pipeThrough(new CompressionStream("gzip"));
+  const compressed = await arrayBufferFromStream(compressedStream);
   if (compressed.length >= bytes.length) {
     return { bytes, compressed: false };
   }
@@ -80,7 +79,8 @@ const tryDecompress = async (bytes: Uint8Array): Promise<Uint8Array> => {
     throw new Error("This browser does not support decompression for shared links.");
   }
 
-  return arrayBufferFromStream(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip")));
+  const decompressedStream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return arrayBufferFromStream(decompressedStream);
 };
 
 const deriveAesKey = async (passphrase: string, salt: Uint8Array, iterations: number) => {
@@ -203,7 +203,7 @@ export const decryptEncryptedShareEnvelope = async (
     const decryptedBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, encryptedData);
     decryptedBytes = new Uint8Array(decryptedBuffer);
   } catch {
-    throw new Error("Failed to decrypt shared content. Check your passphrase.");
+    throw new Error("Decryption failed. Verify the passphrase and ensure the shared content is not corrupted.");
   }
 
   const dataBytes = envelope.compressed ? await tryDecompress(decryptedBytes) : decryptedBytes;
@@ -239,8 +239,7 @@ export const parsePayloadFromLocationHash = (hash: string): string | null => {
   if (!hash || !hash.startsWith("#")) return null;
   const content = hash.slice(1);
   const params = new URLSearchParams(content);
-  const payload = params.get("payload");
-  return payload;
+  return params.get("payload");
 };
 
 export const createEncryptedShareFileBlob = (envelope: EncryptedShareEnvelope) =>
