@@ -1,4 +1,4 @@
-# Smart MD Viewer - Comprehensive Project Documentation
+# CORTEX - Comprehensive Project Documentation
 
 ## 📋 Table of Contents
 1. [Project Overview](#project-overview)
@@ -17,7 +17,7 @@
 
 ## 🎯 Project Overview
 
-**Smart MD Viewer** is a professional, feature-rich markdown editor and viewer built as a Progressive Web Application (PWA). It provides a comprehensive solution for creating, organizing, editing, and managing markdown documents entirely in the browser with offline-first capabilities.
+**CORTEX** is the planning and knowledge brain - a professional, feature-rich markdown editor and viewer built as a Progressive Web Application (PWA). It provides a comprehensive solution for creating, organizing, editing, and managing markdown documents entirely in the browser with offline-first capabilities.
 
 ### Primary Purpose
 - Professional markdown editing and live preview
@@ -141,7 +141,7 @@ App.tsx (Root)
 ## 📁 Project Structure
 
 ```
-Smart-MD-Viewer/
+CORTEX/
 ├── .github/workflows/          # CI/CD workflows
 │   ├── ci.yml                  # Continuous Integration
 │   └── deploy.yml              # GitHub Pages deployment
@@ -611,7 +611,7 @@ npm run build:dev
 ```typescript
 // vite.config.ts
 export default defineConfig({
-  base: mode === 'production' ? '/Smart-MD-Viewer/' : '/',
+  base: mode === 'production' ? '/Smart-MD-Viewer/' : '/', // Update if repo name changes
   server: {
     host: "::",
     port: 8080
@@ -630,7 +630,7 @@ export default defineConfig({
 2. `.github/workflows/deploy.yml` triggers
 3. Builds production bundle
 4. Deploys to `gh-pages` branch
-5. Available at: `https://[username].github.io/Smart-MD-Viewer/`
+5. Available at: `https://[username].github.io/Smart-MD-Viewer/` (Update if repo name changes)
 
 **Deployment Workflow**:
 ```yaml
@@ -919,7 +919,7 @@ export default defineConfig({
 
 ## 🏁 Conclusion
 
-Smart MD Viewer is a comprehensive, production-ready markdown editor built with modern web technologies. It demonstrates best practices in:
+CORTEX is a comprehensive, production-ready markdown editor built with modern web technologies. It demonstrates best practices in:
 - React component architecture
 - TypeScript type safety
 - Offline-first application design

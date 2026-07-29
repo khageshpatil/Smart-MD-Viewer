@@ -1,9 +1,9 @@
-# Smart MD Viewer
+# CORTEX
 
 ![Deploy Status](https://github.com/[username]/Smart-md-viewer/actions/workflows/deploy.yml/badge.svg)
 ![CI Status](https://github.com/[username]/Smart-md-viewer/actions/workflows/ci.yml/badge.svg)
 
-A professional markdown viewer and editor with advanced features for organizing, editing, and previewing markdown documents.
+CORTEX is the planning and knowledge brain - a professional markdown viewer and editor with advanced features for organizing, editing, and previewing markdown documents.
 
 > **Note:** Replace `[username]` in the badges above with your GitHub username.
 
@@ -39,6 +39,7 @@ git clone https://github.com/[username]/Smart-md-viewer.git
 
 # Navigate to the project directory
 cd Smart-md-viewer
+# Note: Repository name may differ from product name (CORTEX)
 
 # Install dependencies
 npm install
@@ -79,7 +80,7 @@ npm run lint
 ## 📦 Project Structure
 
 ```
-Smart-MD-Viewer/
+CORTEX/
 ├── src/
 │   ├── components/       # Reusable UI components
 │   ├── pages/           # Page components
@@ -101,6 +102,7 @@ This project includes automated GitHub Actions workflows for continuous deployme
 2. Go to **Settings** → **Pages**
 3. Select Source: **GitHub Actions**
 4. Your site will be live at `https://[username].github.io/Smart-md-viewer/`
+   (Update URL if repository name changes)
 
 For detailed deployment instructions, troubleshooting, and alternative hosting options, see **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
 

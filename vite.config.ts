@@ -7,6 +7,7 @@ export default defineConfig(({ mode }) => ({
   // Set base to repository name for GitHub Pages
   // For custom domain or root deployment, set base: '/'
   // Use repository name in production, root in development
+  // Note: Update this path if repository name changes from 'Smart-MD-Viewer'
   base: mode === 'production' ? '/Smart-MD-Viewer/' : '/',
   server: {
     host: "::",

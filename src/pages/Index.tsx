@@ -3,6 +3,7 @@ import { FileText, Eye, Code, Download, Network, Archive, Upload, Menu, Kanban }
 import { Button } from "@/components/ui/button";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { SystemModeSwitcher } from "@/components/SystemModeSwitcher";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -43,7 +44,6 @@ import {
 } from "@/lib/indexedDB";
 import JSZip from "jszip";
 import { useToast } from "@/hooks/use-toast";
-import { Link } from "react-router-dom";
 
 const Index = () => {
   const [activeDocument, setActiveDocument] = useState<Document | null>(null);
@@ -376,52 +376,7 @@ const Index = () => {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen bg-background flex flex-col w-full">
-        {/* Header */}
-        <header className="border-b border-border bg-card peer-data-[state=expanded]:md:pl-[--sidebar-width] peer-data-[state=collapsed]:md:pl-0 transition-[padding] duration-200 ease-linear sticky top-0 z-20">
-          <div className="px-4 py-3 flex items-center gap-4">
-            <SidebarTrigger className="h-8 w-8 p-0 border-0 hover:bg-accent" />
-            <div className="flex items-center gap-2">
-              <FileText className="w-6 h-6 text-primary" />
-              <h1 className="text-xl font-bold">Smart MD Viewer</h1>
-            </div>
-
-          <div className="ml-auto flex items-center gap-2">
-            <ThemeToggle />
-            <Link to="/tickets">
-              <Button variant="outline" size="sm">
-                <Kanban className="w-4 h-4 mr-2" />
-                Tickets
-              </Button>
-            </Link>
-            <Button variant="outline" size="sm" onClick={() => setSandboxOpen(true)}>
-              <Network className="w-4 h-4 mr-2" />
-              Diagram Editor
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Archive className="w-4 h-4 mr-2" />
-                  Workspace
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48 bg-popover border-border z-50">
-                <DropdownMenuItem onClick={handleExportWorkspace}>
-                  <Download className="w-4 h-4 mr-2" />
-                  Export Workspace
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleImportWorkspace}>
-                  <Upload className="w-4 h-4 mr-2" />
-                  Import Workspace
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </header>
-
-        {/* Main Layout */}
-        <div className="flex-1 flex overflow-hidden">
+      <div className="flex h-screen w-full overflow-hidden">
           {/* Sidebar */}
           <DocumentSidebar
           key={refreshSidebar}
@@ -438,6 +393,66 @@ const Index = () => {
           activeDocumentId={activeDocument?.id || null}
           currentFolderId={activeDocument?.folderId || null}
         />
+
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* Header */}
+          <header className="border-b border-border bg-card sticky top-0 z-20">
+            <div className="px-3 sm:px-4 md:px-6 py-3 flex items-center gap-2 sm:gap-4">
+              <SidebarTrigger className="h-8 w-8 p-0 border-0 hover:bg-accent flex-shrink-0" />
+              <div className="flex items-center gap-2 min-w-0">
+                <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-primary flex-shrink-0" />
+                <h1 className="text-base sm:text-lg md:text-xl font-bold truncate">CORTEX</h1>
+              </div>
+
+              <div className="ml-auto flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                <SystemModeSwitcher />
+                <Button variant="outline" size="sm" onClick={() => setSandboxOpen(true)} className="hidden sm:flex">
+                  <Network className="w-4 h-4 mr-2" />
+                  Diagram Editor
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setSandboxOpen(true)} className="sm:hidden" title="Diagram Editor">
+                  <Network className="w-4 h-4" />
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="hidden sm:flex">
+                      <Archive className="w-4 h-4 mr-2" />
+                      Workspace
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48 bg-popover border-border z-50">
+                    <DropdownMenuItem onClick={handleExportWorkspace}>
+                      <Download className="w-4 h-4 mr-2" />
+                      Export Workspace
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleImportWorkspace}>
+                      <Upload className="w-4 h-4 mr-2" />
+                      Import Workspace
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="sm:hidden" title="Workspace">
+                      <Archive className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48 bg-popover border-border z-50">
+                    <DropdownMenuItem onClick={handleExportWorkspace}>
+                      <Download className="w-4 h-4 mr-2" />
+                      Export Workspace
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleImportWorkspace}>
+                      <Upload className="w-4 h-4 mr-2" />
+                      Import Workspace
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <ThemeToggle />
+              </div>
+            </div>
+          </header>
 
         {/* Main Content */}
         <main className="flex-1 overflow-auto">
@@ -612,6 +627,7 @@ const Index = () => {
             </div>
           )}
         </main>
+        </div>
       </div>
 
         {/* Tag Dialog */}
@@ -643,7 +659,6 @@ const Index = () => {
         
         {/* Mermaid Sandbox Modal */}
         <MermaidSandbox open={sandboxOpen} onOpenChange={setSandboxOpen} />
-      </div>
     </SidebarProvider>
   );
 };

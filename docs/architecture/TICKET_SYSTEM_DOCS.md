@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Smart MD Viewer now includes a full-featured Jira-like ticket management system with GitHub Pull Request integration. This system enables you to manage development tasks, track progress, and automatically sync ticket status with GitHub PR states.
+CORTEX now includes a full-featured Jira-like ticket management system with GitHub Pull Request integration. This system enables you to manage development tasks, track progress, and automatically sync ticket status with GitHub PR states.
 
 ## Features
 
@@ -95,7 +95,7 @@ The Smart MD Viewer now includes a full-featured Jira-like ticket management sys
 1. **Get a GitHub Personal Access Token**
    - Go to GitHub Settings → Developer settings → Personal access tokens
    - Click "Generate new token (classic)"
-   - Give it a descriptive name (e.g., "Smart MD Viewer Tickets")
+   - Give it a descriptive name (e.g., "CORTEX Tickets")
    - Select the **"repo"** scope (full control of private repositories)
    - Click "Generate token"
    - Copy the token immediately (you won't see it again!)
@@ -340,7 +340,7 @@ When contributing to the ticket system:
 
 ## License
 
-This feature is part of Smart MD Viewer and follows the same license.
+This feature is part of CORTEX and follows the same license.
 
 ---
 

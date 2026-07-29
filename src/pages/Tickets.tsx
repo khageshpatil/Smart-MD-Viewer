@@ -7,6 +7,7 @@ import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { SystemModeSwitcher } from "@/components/SystemModeSwitcher";
 import { Plus, Github, Menu, FileText } from "lucide-react";
 import { TicketBoard } from "@/components/TicketBoard";
 import { TicketModal } from "@/components/TicketModal";
@@ -25,7 +26,6 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Link } from "react-router-dom";
 
 const Tickets = () => {
   const { toast } = useToast();
@@ -289,36 +289,47 @@ const Tickets = () => {
 
   return (
     <SidebarProvider>
-      <div className="flex flex-col h-screen">
+      <div className="flex flex-col h-screen w-full overflow-hidden">
         {/* Header */}
-        <header className="border-b px-6 py-3 flex items-center justify-between bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="flex items-center gap-4">
-            <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <FileText className="w-5 h-5" />
-              <span className="text-sm text-muted-foreground">Back to Documents</span>
-            </Link>
-            <div className="w-px h-6 bg-border" />
-            <h1 className="text-xl font-semibold">Ticket Board</h1>
+        <header className="border-b border-border bg-card px-3 sm:px-4 md:px-6 py-3 flex items-center justify-between gap-2 sticky top-0 z-20">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+            <h1 className="text-base sm:text-lg md:text-xl font-semibold truncate">Ticket Board</h1>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+            <SystemModeSwitcher />
             <Button
               variant="outline"
               size="sm"
               onClick={() => handleCreateTicket("todo")}
+              className="hidden sm:flex"
             >
               <Plus className="w-4 h-4 mr-2" />
               New Ticket
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleCreateTicket("todo")}
+              className="sm:hidden"
+              title="New Ticket"
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
 
             <Sheet open={githubPanelOpen} onOpenChange={setGithubPanelOpen}>
               <SheetTrigger asChild>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" className="hidden sm:flex">
                   <Github className="w-4 h-4 mr-2" />
                   GitHub
                 </Button>
               </SheetTrigger>
-              <SheetContent className="w-[500px] sm:w-[600px] overflow-y-auto">
+              <SheetTrigger asChild>
+                <Button variant="outline" size="sm" className="sm:hidden" title="GitHub">
+                  <Github className="w-4 h-4" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent className="w-full sm:w-[500px] md:w-[600px] overflow-y-auto">
                 <SheetHeader className="mb-4">
                   <SheetTitle>GitHub Integration</SheetTitle>
                   <SheetDescription>

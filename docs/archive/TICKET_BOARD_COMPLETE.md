@@ -2,14 +2,14 @@
 
 ## 🎉 Status: COMPLETE
 
-A fully functional Jira-like ticket management system with GitHub PR integration has been successfully implemented in Smart MD Viewer.
+A fully functional Jira-like ticket management system with GitHub PR integration has been successfully implemented in CORTEX.
 
 ---
 
 ## 📁 Project Structure
 
 ```
-Smart-MD-Viewer/
+CORTEX/
 ├── src/
 │   ├── components/
 │   │   ├── TicketBoard.tsx          ✅ Kanban board with filtering
@@ -338,4 +338,4 @@ The ticket board system is **ready for production use**. All features have been 
 
 ---
 
-*Built with ❤️ for Smart MD Viewer*
+*Built with ❤️ for CORTEX*
