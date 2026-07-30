@@ -3,12 +3,6 @@ import mermaid from "mermaid";
 import { ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-mermaid.initialize({
-  startOnLoad: false,
-  theme: "neutral",
-  securityLevel: "loose",
-});
-
 interface MermaidDiagramProps {
   chart: string;
 }
@@ -19,6 +13,16 @@ const MermaidDiagram = ({ chart }: MermaidDiagramProps) => {
   const [scale, setScale] = useState(1);
 
   useEffect(() => {
+    try {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: "neutral",
+        securityLevel: "loose",
+      });
+    } catch {
+      // Ignore re-initialization warnings
+    }
+
     if (elementRef.current) {
       elementRef.current.innerHTML = chart;
       elementRef.current.removeAttribute('data-processed');

@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
 export default defineConfig(({ mode }) => ({
-  base: mode === 'production' ? '/Smart-MD-Viewer/' : '/',
+  base: "./",
   server: {
     host: "::",
     port: 8080,
@@ -18,10 +18,6 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       output: {
         manualChunks: (id) => {
-          // Mermaid gets its own chunk — lazy loaded
-          if (id.includes('node_modules/mermaid') || id.includes('node_modules/d3') || id.includes('node_modules/dagre')) {
-            return 'mermaid';
-          }
           // Syntax highlighting gets its own chunk — lazy loaded
           if (id.includes('node_modules/react-syntax-highlighter') || id.includes('node_modules/prismjs') || id.includes('node_modules/highlight.js') || id.includes('node_modules/refractor')) {
             return 'syntax-highlight';
