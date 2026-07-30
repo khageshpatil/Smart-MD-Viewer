@@ -32,6 +32,41 @@ const CodeFallback = ({ children }: { children: string }) => (
   </pre>
 );
 
+const MarkdownTable = ({ children, ...props }: React.HTMLAttributes<HTMLTableElement>) => {
+  const tableRef = useRef<HTMLTableElement>(null);
+
+  const handleCopyCsv = () => {
+    if (!tableRef.current) return;
+    const rows = Array.from(tableRef.current.querySelectorAll("tr"));
+    const csvContent = rows
+      .map((row) =>
+        Array.from(row.querySelectorAll("th, td"))
+          .map((cell) => `"${cell.textContent?.replace(/"/g, '""').trim() || ""}"`)
+          .join(",")
+      )
+      .join("\n");
+
+    navigator.clipboard.writeText(csvContent);
+  };
+
+  return (
+    <div className="group relative my-6 w-full overflow-x-auto rounded-lg border border-border">
+      <button
+        onClick={handleCopyCsv}
+        className="absolute top-2 right-2 z-10 hidden group-hover:flex items-center gap-1 bg-background/90 backdrop-blur-sm border border-border text-xs px-2 py-1 rounded shadow-sm hover:bg-muted text-muted-foreground hover:text-foreground transition-all"
+        title="Copy table data as CSV"
+        aria-label="Copy table data as CSV"
+      >
+        <Copy className="w-3 h-3" />
+        Copy CSV
+      </button>
+      <table ref={tableRef} className="w-full text-left text-sm" {...props}>
+        {children}
+      </table>
+    </div>
+  );
+};
+
 export function MarkdownPreview({ content }: MarkdownPreviewProps) {
   return (
     <div className="markdown-preview">
@@ -141,7 +176,7 @@ export function MarkdownPreview({ content }: MarkdownPreviewProps) {
               rawText = "";
             }
 
-            const match = rawText.trim().match(/^\[\!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]/i);
+            const match = rawText.trim().match(/^\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]/i);
 
             if (match) {
               const type = match[1].toUpperCase();
@@ -159,7 +194,7 @@ export function MarkdownPreview({ content }: MarkdownPreviewProps) {
                     if (idx === 0 && child && typeof child === "object" && "props" in child) {
                       const pChildren = child.props.children;
                       if (Array.isArray(pChildren) && typeof pChildren[0] === "string") {
-                        const cleanedText = pChildren[0].replace(/^\[\!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]/i, "").trimStart();
+                        const cleanedText = pChildren[0].replace(/^\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]/i, "").trimStart();
                         return { ...child, props: { ...child.props, children: [cleanedText, ...pChildren.slice(1)] } };
                       }
                     }
@@ -179,40 +214,7 @@ export function MarkdownPreview({ content }: MarkdownPreviewProps) {
 
             return <blockquote className="border-l-4 border-muted-foreground/30 pl-4 my-4 italic text-muted-foreground" {...props}>{children}</blockquote>;
           },
-          table({ children, ...props }) {
-            const tableRef = useRef<HTMLTableElement>(null);
-
-            const handleCopyCsv = () => {
-              if (!tableRef.current) return;
-              const rows = Array.from(tableRef.current.querySelectorAll("tr"));
-              const csvContent = rows
-                .map((row) =>
-                  Array.from(row.querySelectorAll("th, td"))
-                    .map((cell) => `"${cell.textContent?.replace(/"/g, '""').trim() || ""}"`)
-                    .join(",")
-                )
-                .join("\n");
-
-              navigator.clipboard.writeText(csvContent);
-            };
-
-            return (
-              <div className="group relative my-6 w-full overflow-x-auto rounded-lg border border-border">
-                <button
-                  onClick={handleCopyCsv}
-                  className="absolute top-2 right-2 z-10 hidden group-hover:flex items-center gap-1 bg-background/90 backdrop-blur-sm border border-border text-xs px-2 py-1 rounded shadow-sm hover:bg-muted text-muted-foreground hover:text-foreground transition-all"
-                  title="Copy table data as CSV"
-                  aria-label="Copy table data as CSV"
-                >
-                  <Copy className="w-3 h-3" />
-                  Copy CSV
-                </button>
-                <table ref={tableRef} className="w-full text-left text-sm" {...props}>
-                  {children}
-                </table>
-              </div>
-            );
-          },
+          table: MarkdownTable,
           code({ children, className, ...props }) {
             const language = /language-([\w-]+)/.exec(className || "")?.[1];
             const source = String(children).replace(/\n$/, "");
