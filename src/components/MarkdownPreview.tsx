@@ -8,14 +8,12 @@ import { Copy } from "lucide-react";
 
 const MermaidDiagram = lazy(() => import("@/components/MermaidDiagram"));
 const SyntaxHighlighter = lazy(async () => {
-  const [{ Prism }, styles] = await Promise.all([
-    import("react-syntax-highlighter"),
-    import("react-syntax-highlighter/dist/esm/styles/prism"),
-  ]);
+  const { Prism } = await import("react-syntax-highlighter");
+  const { oneDark } = await import("react-syntax-highlighter/dist/esm/styles/prism");
 
   return {
     default: ({ language, children }: { language: string; children: string }) => (
-      <Prism style={styles.oneDark} language={language} PreTag="div">
+      <Prism style={oneDark} language={language} PreTag="div">
         {children}
       </Prism>
     ),
