@@ -3,14 +3,78 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Smart MD Viewer - Multi-Document Markdown Viewer</title>
-    <meta name="description" content="A professional markdown viewer for opening and previewing multiple .md files locally in your browser" />
 
-    <meta property="og:title" content="Smart MD Viewer" />
-    <meta property="og:description" content="Professional Markdown Viewer and Editor" />
+    <!-- Primary meta -->
+    <title>Smart MD Viewer — Private Local-First Markdown Viewer</title>
+    <meta
+      name="description"
+      content="Open, render, and share Markdown files privately. Mermaid diagrams, syntax highlighting, encrypted sharing — your files never leave your browser."
+    />
+    <link rel="canonical" href="https://smartmd.app/" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#3b82f6" />
+
+    <!-- Open Graph -->
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://smartmd.app/" />
+    <meta property="og:title" content="Smart MD Viewer — Private Markdown Viewer" />
+    <meta
+      property="og:description"
+      content="Open, render, and share Markdown privately. Mermaid diagrams, LaTeX math, encrypted sharing. Your files never leave your browser."
+    />
+    <meta property="og:image" content="https://smartmd.app/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="SmartMD Viewer — Private local-first Markdown viewer" />
 
+    <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Smart MD Viewer — Private Markdown Viewer" />
+    <meta
+      name="twitter:description"
+      content="Open, render, and share Markdown privately. Your files never leave your browser."
+    />
+    <meta name="twitter:image" content="https://smartmd.app/og.png" />
+
+    <!-- Structured data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Smart MD Viewer",
+      "url": "https://smartmd.app/",
+      "description": "A private, local-first Markdown viewer with encrypted sharing. Open and render .md files without uploading to any server.",
+      "applicationCategory": "ProductivityApplication",
+      "operatingSystem": "Any",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+    </script>
+
+    <!-- Favicon & PWA Manifest -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- FOUC guard: apply persisted theme class before any CSS loads -->
+    <!-- This prevents the flash from light→dark on initial load -->
+    <script>
+      (function() {
+        try {
+          var theme = localStorage.getItem('theme');
+          if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+          } else if (theme === 'light') {
+            document.documentElement.classList.remove('dark');
+          }
+          // If no preference saved, leave as-is (default light from CSS)
+        } catch(e) {
+          // localStorage not available — silently ignore
+        }
+      })();
+    </script>
   </head>
 
   <body>

@@ -1,3 +1,4 @@
+@import "katex/dist/katex.min.css";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -121,9 +122,51 @@ All colors MUST be HSL.
     @apply prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl;
     @apply prose-p:leading-relaxed prose-p:text-foreground;
     @apply prose-a:text-primary prose-a:no-underline hover:prose-a:underline;
-    @apply prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm;
-    @apply prose-pre:bg-code-bg prose-pre:text-code-text;
     @apply prose-img:rounded-lg prose-img:shadow-md;
+    
+    /* Reading width constraint: comfortable 65-75 chars per line */
+    max-width: 72ch;
+    margin-left: auto;
+    margin-right: auto;
+    
+    /* Ensure padding on mobile */
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  /* GFM Task List Checklist Styling */
+  .markdown-preview ul.contains-task-list {
+    list-style-type: none;
+    padding-left: 0;
+  }
+
+  .markdown-preview li.task-list-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .markdown-preview input[type="checkbox"] {
+    accent-color: hsl(var(--primary));
+    width: 1.1rem;
+    height: 1.1rem;
+    border-radius: 0.25rem;
+    cursor: pointer;
+  }
+
+  /* Table styling enhancements */
+  .markdown-preview table th {
+    @apply bg-muted/60 px-4 py-2.5 font-semibold text-foreground border-b border-border;
+  }
+
+  .markdown-preview table td {
+    @apply px-4 py-2.5 border-b border-border/60 text-foreground/90;
+  }
+
+  .markdown-preview table tr:hover td {
+    @apply bg-muted/30 transition-colors;
   }
 
   .dark .markdown-preview {
@@ -136,5 +179,137 @@ All colors MUST be HSL.
 
   .mermaid {
     @apply flex justify-center items-center;
+  }
+}
+
+/* Reader typography, font size & width utility overrides */
+.reader-font-sm { font-size: 0.9375rem !important; line-height: 1.7 !important; }
+.reader-font-md { font-size: 1.0625rem !important; line-height: 1.75 !important; }
+.reader-font-lg { font-size: 1.1875rem !important; line-height: 1.8 !important; }
+.reader-font-xl { font-size: 1.3125rem !important; line-height: 1.85 !important; }
+
+.reader-width-compact { max-width: 60ch !important; }
+.reader-width-standard { max-width: 72ch !important; }
+.reader-width-wide { max-width: 90ch !important; }
+.reader-width-full { max-width: 100% !important; }
+
+.reader-family-sans { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important; }
+.reader-family-serif { font-family: Georgia, Cambria, "Times New Roman", Times, serif !important; }
+.reader-family-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important; }
+
+/* ============================================================
+   PRINT STYLES
+   These apply when the user prints or exports to PDF.
+   Goal: show only the document content, hide all app chrome.
+   ============================================================ */
+
+@media print {
+  /* Hide all application chrome */
+  header,
+  aside,
+  nav,
+  [data-sidebar],
+  [data-radix-scroll-area-viewport] {
+    display: none !important;
+  }
+
+  /* Hide the toolbar and action buttons inside the document view */
+  .doc-sub-header {
+    display: none !important;
+  }
+
+  /* Make the main content fill the full page */
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  main {
+    width: 100% !important;
+    overflow: visible !important;
+  }
+
+  /* Reset the reader container to full-width for print */
+  .markdown-preview {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 11pt !important;
+    line-height: 1.5 !important;
+    color: black !important;
+  }
+
+  /* Ensure code blocks are readable in print */
+  .markdown-preview pre,
+  .markdown-preview code {
+    background-color: #f5f5f5 !important;
+    color: black !important;
+    border: 1px solid #ddd !important;
+    page-break-inside: avoid;
+  }
+
+  /* Headings — prevent orphaned headings at page breaks */
+  .markdown-preview h1,
+  .markdown-preview h2,
+  .markdown-preview h3,
+  .markdown-preview h4 {
+    page-break-after: avoid;
+    color: black !important;
+  }
+
+  /* Ensure images scale to fit the page */
+  .markdown-preview img {
+    max-width: 100% !important;
+    height: auto !important;
+    page-break-inside: avoid;
+  }
+
+  /* Tables — prevent splitting across pages when possible */
+  .markdown-preview table {
+    page-break-inside: avoid;
+    border-collapse: collapse !important;
+  }
+
+  .markdown-preview th,
+  .markdown-preview td {
+    border: 1px solid #ccc !important;
+    padding: 4pt 8pt !important;
+    color: black !important;
+    background-color: white !important;
+  }
+
+  .markdown-preview th {
+    background-color: #f5f5f5 !important;
+    font-weight: bold !important;
+  }
+
+  /* Blockquotes */
+  .markdown-preview blockquote {
+    border-left: 3pt solid #ccc !important;
+    color: #444 !important;
+    margin-left: 0 !important;
+    padding-left: 1em !important;
+  }
+
+  /* Links — show URL in parentheses for print */
+  .markdown-preview a[href]::after {
+    content: " (" attr(href) ")";
+    font-size: 9pt;
+    color: #666;
+  }
+
+  /* But don't show URL for anchor links (starting with #) */
+  .markdown-preview a[href^="#"]::after {
+    content: "";
+  }
+
+  /* Mermaid diagrams — preserve SVG in print */
+  .mermaid-container {
+    page-break-inside: avoid;
+  }
+
+  /* Page margins for comfortable print layout */
+  @page {
+    margin: 1.5cm 2cm;
   }
 }

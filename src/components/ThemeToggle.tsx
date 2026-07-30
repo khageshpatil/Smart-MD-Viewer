@@ -11,6 +11,7 @@ export function ThemeToggle() {
       size="sm"
       onClick={() => setTheme(theme === "light" ? "dark" : "light")}
       title={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
+      aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
     >
       {theme === "light" ? (
         <Moon className="w-4 h-4" />

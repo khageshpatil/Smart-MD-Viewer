@@ -257,6 +257,42 @@ export const deleteFolder = async (id: string): Promise<void> => {
   });
 };
 
+export const deleteFolderAndMoveContentsToRoot = async (id: string): Promise<void> => {
+  const database = await initDB();
+  
+  // Use a single transaction for atomicity
+  const transaction = database.transaction(["documents", "folders"], "readwrite");
+  const documentStore = transaction.objectStore("documents");
+  const folderStore = transaction.objectStore("folders");
+
+  // Get all documents directly in this folder
+  const documents = await requestResult<Document[]>(
+    documentStore.index("folderId").getAll(id)
+  );
+  
+  // Get all direct child folders of this folder
+  const childFolders = await requestResult<Folder[]>(
+    folderStore.index("parentId").getAll(id)
+  );
+
+  // Move all documents in this folder to root
+  const now = Date.now();
+  for (const document of documents) {
+    documentStore.put({ ...document, folderId: null, updatedAt: now });
+  }
+  
+  // Move all direct child folders to root (preserve their contents)
+  for (const folder of childFolders) {
+    folderStore.put({ ...folder, parentId: null });
+  }
+  
+  // Delete the folder itself
+  folderStore.delete(id);
+
+  // Wait for transaction to fully complete before resolving
+  await transactionComplete(transaction);
+};
+
 // Export all workspace
 export const exportWorkspace = async (): Promise<{ documents: Document[]; folders: Folder[] }> => {
   const documents = await getAllDocuments();
@@ -265,7 +301,41 @@ export const exportWorkspace = async (): Promise<{ documents: Document[]; folder
 };
 
 // Import workspace
-export const importWorkspace = async (data: { documents: Document[]; folders: Folder[] }): Promise<void> => {
+const requestResult = <T>(request: IDBRequest<T>) => new Promise<T>((resolve, reject) => {
+  request.onsuccess = () => resolve(request.result);
+  request.onerror = () => reject(request.error ?? new Error("IndexedDB request failed"));
+});
+
+const transactionComplete = (transaction: IDBTransaction) => new Promise<void>((resolve, reject) => {
+  transaction.oncomplete = () => resolve();
+  transaction.onabort = () => reject(transaction.error ?? new Error("IndexedDB transaction aborted"));
+  transaction.onerror = () => reject(transaction.error ?? new Error("IndexedDB transaction failed"));
+});
+
+const isDocument = (value: unknown): value is Document => {
+  if (!value || typeof value !== "object") return false;
+  const document = value as Partial<Document>;
+  return typeof document.id === "string" && typeof document.title === "string" &&
+    typeof document.content === "string" && (typeof document.folderId === "string" || document.folderId === null) &&
+    Array.isArray(document.tags) && document.tags.every((tag) => typeof tag === "string") &&
+    typeof document.isPinned === "boolean" && typeof document.createdAt === "number" && typeof document.updatedAt === "number";
+};
+
+const isFolder = (value: unknown): value is Folder => {
+  if (!value || typeof value !== "object") return false;
+  const folder = value as Partial<Folder>;
+  return typeof folder.id === "string" && typeof folder.name === "string" &&
+    (typeof folder.parentId === "string" || folder.parentId === null) && typeof folder.createdAt === "number";
+};
+
+export const importWorkspace = async (data: unknown): Promise<void> => {
+  if (!data || typeof data !== "object") throw new Error("Workspace metadata must be an object.");
+  const workspace = data as { documents?: unknown; folders?: unknown };
+  if (!Array.isArray(workspace.documents) || !Array.isArray(workspace.folders) ||
+      !workspace.documents.every(isDocument) || !workspace.folders.every(isFolder)) {
+    throw new Error("Workspace metadata is invalid or unsupported.");
+  }
+
   const database = await initDB();
   
   const transaction = database.transaction(["documents", "folders"], "readwrite");
@@ -273,22 +343,11 @@ export const importWorkspace = async (data: { documents: Document[]; folders: Fo
   const folderStore = transaction.objectStore("folders");
 
   // Import folders first
-  for (const folder of data.folders) {
-    await new Promise((resolve, reject) => {
-      const request = folderStore.put(folder);
-      request.onsuccess = () => resolve(undefined);
-      request.onerror = () => reject(request.error);
-    });
-  }
+  workspace.folders.forEach((folder) => folderStore.put(folder));
 
   // Import documents
-  for (const doc of data.documents) {
-    await new Promise((resolve, reject) => {
-      const request = docStore.put(doc);
-      request.onsuccess = () => resolve(undefined);
-      request.onerror = () => reject(request.error);
-    });
-  }
+  workspace.documents.forEach((document) => docStore.put(document));
+  await transactionComplete(transaction);
 };
 
 // ============================================

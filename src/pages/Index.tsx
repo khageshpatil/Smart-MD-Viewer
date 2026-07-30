@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect, useRef } from "react";
-import { FileText, Eye, Code, Download, Network, Archive, Upload, Kanban, Share2 } from "lucide-react";
+import { useState, useCallback, useEffect, useRef, lazy, Suspense } from "react";
+import { FileText, Eye, Code, Download, Network, Archive, Upload, Kanban, Share2, AlignLeft, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -20,14 +20,14 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import mermaid from "mermaid";
-import MermaidDiagram from "@/components/MermaidDiagram";
-import { MermaidSandbox } from "@/components/MermaidSandbox";
-import { DocumentSidebar } from "@/components/DocumentSidebar";
+
+const MermaidSandbox = lazy(() => import("@/components/MermaidSandbox").then((module) => ({ default: module.MermaidSandbox })));
+const MarkdownPreview = lazy(() => import("@/components/MarkdownPreview").then((module) => ({ default: module.MarkdownPreview })));
+import { LandingHero } from "@/components/LandingHero";
+import { DocumentSidebar, notifyWorkspaceUpdated } from "@/components/DocumentSidebar";
+import { TableOfContents } from "@/components/TableOfContents";
+import { ReaderControls, getSavedReaderSettings, ReaderSettings } from "@/components/ReaderControls";
+import { ShareDialog } from "@/components/ShareDialog";
 import {
   Document,
   Folder,
@@ -38,6 +38,7 @@ import {
   saveFolder,
   getFolder,
   deleteFolder,
+  deleteFolderAndMoveContentsToRoot,
   exportWorkspace,
   importWorkspace,
 } from "@/lib/indexedDB";
@@ -62,14 +63,17 @@ const SHARE_PREVIEW_MAX_CHARS = 260;
 
 const Index = () => {
   const [activeDocument, setActiveDocument] = useState<Document | null>(null);
-  const [viewMode, setViewMode] = useState<"preview" | "code" | "split">("split");
+  const [viewMode, setViewMode] = useState<"preview" | "code" | "split">("preview");
+  const [isUnsavedFile, setIsUnsavedFile] = useState(false);
   const [sandboxOpen, setSandboxOpen] = useState(false);
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
   const [newTag, setNewTag] = useState("");
   const [editingDocId, setEditingDocId] = useState<string | null>(null);
-  const mermaidInitialized = useRef(false);
+  const [showToc, setShowToc] = useState(false);
+  const [isFocusMode, setIsFocusMode] = useState(false);
+  const [readerSettings, setReaderSettings] = useState<ReaderSettings>(getSavedReaderSettings);
   const titleInputRef = useRef<HTMLInputElement>(null);
-  const [refreshSidebar, setRefreshSidebar] = useState(0);
+  const localFileInputRef = useRef<HTMLInputElement>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout>();
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [sharePassphrase, setSharePassphrase] = useState("");
@@ -79,16 +83,8 @@ const Index = () => {
   const hasProcessedSharedHashRef = useRef(false);
   const { toast } = useToast();
 
-  // Initialize mermaid and IndexedDB
+  // Initialize IndexedDB
   useEffect(() => {
-    if (!mermaidInitialized.current) {
-      mermaid.initialize({
-        startOnLoad: true,
-        theme: "neutral",
-        securityLevel: "loose",
-      });
-      mermaidInitialized.current = true;
-    }
     initDB();
 
     if (!hasProcessedSharedHashRef.current) {
@@ -114,6 +110,118 @@ const Index = () => {
     }
   }, [toast]);
 
+  useEffect(() => () => {
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+  }, []);
+
+  // Hotkeys: 't' for TOC, 'f' for Focus Mode, 'Escape' to exit Focus Mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isTyping =
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable;
+
+      if (e.key === "Escape" && isFocusMode) {
+        setIsFocusMode(false);
+        return;
+      }
+
+      if (isTyping) return;
+
+      if (e.key === "t" || e.key === "T") {
+        e.preventDefault();
+        setShowToc((prev) => !prev);
+      } else if (e.key === "f" || e.key === "F") {
+        e.preventDefault();
+        setIsFocusMode((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isFocusMode]);
+
+  const handleSaveLocalFile = async () => {
+    if (!activeDocument) return;
+    try {
+      const savedDocument = { ...activeDocument, id: `doc-${crypto.randomUUID()}`, updatedAt: Date.now() };
+      await saveDocument(savedDocument);
+      setActiveDocument(savedDocument);
+      setIsUnsavedFile(false);
+      notifyWorkspaceUpdated();
+      toast({ title: "Saved to workspace", description: "Your local Markdown file is now a workspace document." });
+    } catch {
+      toast({ title: "Save failed", description: "The document could not be saved to your workspace.", variant: "destructive" });
+    }
+  };
+
+  const handlePasteRender = useCallback((content: string, title = "Pasted Markdown") => {
+    const now = Date.now();
+    setActiveDocument({
+      id: `local-${crypto.randomUUID()}`,
+      title,
+      content,
+      folderId: null,
+      tags: [],
+      isPinned: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    setIsUnsavedFile(true);
+    setViewMode("preview");
+  }, []);
+
+  const handleOpenMarkdownFile = () => {
+    if (localFileInputRef.current) {
+      localFileInputRef.current.click();
+    }
+  };
+
+  useEffect(() => {
+    const input = localFileInputRef.current;
+    if (!input) return;
+    const handleChange = async (e: Event) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      try {
+        const content = await file.text();
+        const title = file.name.replace(/\.md(?:own)?$/i, "") || "Opened File";
+        handlePasteRender(content, title);
+      } catch { /* ignore */ }
+      input.value = "";
+    };
+    input.addEventListener("change", handleChange);
+    return () => input.removeEventListener("change", handleChange);
+  }, [handlePasteRender]);
+
+  useEffect(() => {
+    const handleWindowDrop = async (e: DragEvent) => {
+      if (activeDocument) return;
+      e.preventDefault();
+      const file = e.dataTransfer?.files[0];
+      if (!file) return;
+      const isMarkdown = file.name.endsWith(".md") || file.name.endsWith(".markdown") || file.type === "text/markdown" || file.type === "text/plain";
+      if (!isMarkdown) return;
+      try {
+        const content = await file.text();
+        const title = file.name.replace(/\.md(?:own)?$/i, "") || "Dropped File";
+        handlePasteRender(content, title);
+      } catch { /* ignore unreadable files */ }
+    };
+
+    const handleWindowDragOver = (e: DragEvent) => {
+      e.preventDefault();
+    };
+
+    window.addEventListener("drop", handleWindowDrop);
+    window.addEventListener("dragover", handleWindowDragOver);
+    return () => {
+      window.removeEventListener("drop", handleWindowDrop);
+      window.removeEventListener("dragover", handleWindowDragOver);
+    };
+  }, [activeDocument, handlePasteRender]);
+
   // Auto-save with debounce
   const autoSave = useCallback((doc: Document) => {
     if (saveTimeoutRef.current) {
@@ -121,13 +229,27 @@ const Index = () => {
     }
     saveTimeoutRef.current = setTimeout(async () => {
       await saveDocument(doc);
-      setRefreshSidebar((prev) => prev + 1);
+      notifyWorkspaceUpdated();
     }, 500);
   }, []);
 
   const handleDocumentSelect = async (doc: Document) => {
+    // If there's a pending autosave for the current document, flush it immediately
+    if (saveTimeoutRef.current && activeDocument && !isUnsavedFile) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = undefined;
+      try {
+        await saveDocument(activeDocument);
+      } catch {
+        // Silent — we're switching away, best effort save
+      }
+    } else if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = undefined;
+    }
     setActiveDocument(doc);
-    setViewMode("split");
+    setIsUnsavedFile(false);
+    setViewMode("preview");
   };
 
   const handleNewDocument = async (folderId: string | null) => {
@@ -143,8 +265,9 @@ const Index = () => {
     };
     await saveDocument(newDoc);
     setActiveDocument(newDoc);
-    setViewMode("split");
-    setRefreshSidebar((prev) => prev + 1);
+    setIsUnsavedFile(false);
+    setViewMode("preview");
+    notifyWorkspaceUpdated();
     
     // Focus title input after a short delay
     setTimeout(() => {
@@ -157,7 +280,7 @@ const Index = () => {
     if (activeDocument?.id === docId) {
       setActiveDocument(null);
     }
-    setRefreshSidebar((prev) => prev + 1);
+    notifyWorkspaceUpdated();
     toast({
       title: "Document deleted",
       description: "The document has been removed from your workspace.",
@@ -172,7 +295,7 @@ const Index = () => {
       if (activeDocument?.id === docId) {
         setActiveDocument(updated);
       }
-      setRefreshSidebar((prev) => prev + 1);
+      notifyWorkspaceUpdated();
     }
   };
 
@@ -184,7 +307,7 @@ const Index = () => {
       if (activeDocument?.id === docId) {
         setActiveDocument(updated);
       }
-      setRefreshSidebar((prev) => prev + 1);
+      notifyWorkspaceUpdated();
     }
   };
 
@@ -205,7 +328,7 @@ const Index = () => {
         if (activeDocument?.id === editingDocId) {
           setActiveDocument(updated);
         }
-        setRefreshSidebar((prev) => prev + 1);
+        notifyWorkspaceUpdated();
       }
     }
     setNewTag("");
@@ -222,7 +345,7 @@ const Index = () => {
     };
     await saveDocument(updated);
     setActiveDocument(updated);
-    setRefreshSidebar((prev) => prev + 1);
+    notifyWorkspaceUpdated();
   };
 
   const handleMoveDocument = async (docId: string, folderId: string | null) => {
@@ -233,7 +356,7 @@ const Index = () => {
       if (activeDocument?.id === docId) {
         setActiveDocument(updated);
       }
-      setRefreshSidebar((prev) => prev + 1);
+      notifyWorkspaceUpdated();
     }
   };
 
@@ -245,17 +368,31 @@ const Index = () => {
       createdAt: Date.now(),
     };
     await saveFolder(newFolder);
-    setRefreshSidebar((prev) => prev + 1);
+    notifyWorkspaceUpdated();
   };
 
   const handleDeleteFolder = async (folderId: string) => {
-    // Note: In production, you'd want to handle documents in the folder
-    await deleteFolder(folderId);
-    setRefreshSidebar((prev) => prev + 1);
-    toast({
-      title: "Folder deleted",
-      description: "The folder has been removed.",
-    });
+    // Browser-native confirm as the simplest safe guard
+    // (A proper dialog is in the T21 refactor scope)
+    const confirmed = window.confirm(
+      "Delete this folder? All documents and subfolders inside will be moved to the workspace root."
+    );
+    if (!confirmed) return;
+    
+    try {
+      await deleteFolderAndMoveContentsToRoot(folderId);
+      notifyWorkspaceUpdated();
+      toast({
+        title: "Folder deleted",
+        description: "Its documents and direct subfolders were moved to the workspace root.",
+      });
+    } catch {
+      toast({
+        title: "Delete failed",
+        description: "The folder could not be deleted. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleRenameFolder = async (folderId: string, newName: string) => {
@@ -263,7 +400,7 @@ const Index = () => {
     if (folder) {
       const updated = { ...folder, name: newName.trim() || "Unnamed Folder" };
       await saveFolder(updated);
-      setRefreshSidebar((prev) => prev + 1);
+      notifyWorkspaceUpdated();
     }
   };
 
@@ -271,14 +408,14 @@ const Index = () => {
     if (!activeDocument) return;
     const updated = { ...activeDocument, title: newTitle, updatedAt: Date.now() };
     setActiveDocument(updated);
-    autoSave(updated);
+    if (!isUnsavedFile) autoSave(updated);
   };
 
   const updateDocumentContent = (newContent: string) => {
     if (!activeDocument) return;
     const updated = { ...activeDocument, content: newContent, updatedAt: Date.now() };
     setActiveDocument(updated);
-    autoSave(updated);
+    if (!isUnsavedFile) autoSave(updated);
   };
 
   const toggleViewMode = () => {
@@ -399,7 +536,7 @@ const Index = () => {
           const content = await metadataFile.async("string");
           const data = JSON.parse(content);
           await importWorkspace(data);
-          setRefreshSidebar((prev) => prev + 1);
+          notifyWorkspaceUpdated();
           toast({
             title: "Workspace imported",
             description: "Your workspace has been imported successfully.",
@@ -583,7 +720,7 @@ const Index = () => {
     await saveDocument(importedDocument);
     setActiveDocument(importedDocument);
     setViewMode("split");
-    setRefreshSidebar((prev) => prev + 1);
+    notifyWorkspaceUpdated();
     clearSharedPayloadFromUrl();
     setPendingImportEnvelope(null);
     setImportPreview(null);
@@ -599,158 +736,207 @@ const Index = () => {
   return (
     <SidebarProvider>
       <div className="min-h-screen bg-background flex flex-col w-full">
-        {/* Header */}
+        {/* App Header */}
+        {!isFocusMode && (
         <header className="border-b border-border bg-card peer-data-[state=expanded]:md:pl-[--sidebar-width] peer-data-[state=collapsed]:md:pl-0 transition-[padding] duration-200 ease-linear sticky top-0 z-20">
           <div className="px-4 py-3 flex items-center gap-4">
             <SidebarTrigger className="h-8 w-8 p-0 border-0 hover:bg-accent" />
             <div className="flex items-center gap-2">
-              <FileText className="w-6 h-6 text-primary" />
-              <h1 className="text-xl font-bold">Smart MD Viewer</h1>
+              <FileText className="w-5 h-5 text-primary" />
+              <h1 className="text-base font-bold tracking-tight">Smart MD</h1>
+              {activeDocument && (
+                <div className="flex items-center gap-2 pl-2 border-l border-border">
+                  <span className="text-xs font-medium text-muted-foreground max-w-[180px] truncate">
+                    {activeDocument.title}
+                  </span>
+                  <Badge variant="outline" className="text-[10px] uppercase font-mono px-1.5 py-0">
+                    .md
+                  </Badge>
+                </div>
+              )}
             </div>
 
-          <div className="ml-auto flex items-center gap-2">
-            <ThemeToggle />
-            <Link to="/tickets">
-              <Button variant="outline" size="sm">
-                <Kanban className="w-4 h-4 mr-2" />
-                Tickets
-              </Button>
-            </Link>
-            <Button variant="outline" size="sm" onClick={() => setSandboxOpen(true)}>
-              <Network className="w-4 h-4 mr-2" />
-              Diagram Editor
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Archive className="w-4 h-4 mr-2" />
-                  Workspace
+            {/* Active Document Header Actions */}
+            {activeDocument && !isFocusMode && (
+              <div className="hidden md:flex items-center gap-1.5 ml-4">
+                <ReaderControls settings={readerSettings} onChange={setReaderSettings} />
+                <Button
+                  variant={showToc ? "secondary" : "outline"}
+                  size="sm"
+                  onClick={() => setShowToc((prev) => !prev)}
+                  title="Toggle Table of Contents (Hotkey: T)"
+                >
+                  <AlignLeft className="w-3.5 h-3.5 mr-1.5" />
+                  TOC
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48 bg-popover border-border z-50">
-                <DropdownMenuItem onClick={handleExportWorkspace}>
-                  <Download className="w-4 h-4 mr-2" />
-                  Export Workspace
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleImportWorkspace}>
-                  <Upload className="w-4 h-4 mr-2" />
-                  Import Workspace
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </header>
-
-        {/* Main Layout */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* Sidebar */}
-          <DocumentSidebar
-          key={refreshSidebar}
-          onDocumentSelect={handleDocumentSelect}
-          onNewDocument={handleNewDocument}
-          onDeleteDocument={handleDeleteDocument}
-          onRenameDocument={handleRenameDocument}
-          onTogglePin={handleTogglePin}
-          onAddTag={handleAddTag}
-          onMoveDocument={handleMoveDocument}
-          onCreateFolder={handleCreateFolder}
-          onDeleteFolder={handleDeleteFolder}
-          onRenameFolder={handleRenameFolder}
-          activeDocumentId={activeDocument?.id || null}
-          currentFolderId={activeDocument?.folderId || null}
-        />
-
-        {/* Main Content */}
-        <main className="flex-1 overflow-auto">
-          {!activeDocument ? (
-            <div className="flex flex-col items-center justify-center min-h-full p-8 text-center">
-              <div className="p-6 rounded-full bg-muted/50 mb-6">
-                <FileText className="w-16 h-16 text-muted-foreground" />
-              </div>
-              <h2 className="text-2xl font-bold mb-2">Document Workspace</h2>
-              <p className="text-muted-foreground mb-6 max-w-md">
-                Create a new document to get started, or select an existing one from the sidebar.
-              </p>
-              <Button onClick={() => handleNewDocument(null)}>
-                <FileText className="w-4 h-4 mr-2" />
-                Create New Document
-              </Button>
-            </div>
-          ) : (
-            <div className="h-full flex flex-col">
-              {/* Document Header */}
-              <div className="border-b border-border bg-card p-4">
-                <div className="flex items-center gap-4 mb-3">
-                  <Input
-                    ref={titleInputRef}
-                    value={activeDocument.title}
-                    onChange={(e) => updateDocumentTitle(e.target.value)}
-                    className="text-xl font-semibold border-none shadow-none focus-visible:ring-0 px-0"
-                  />
-                </div>
-                
-                {/* Tags */}
-                <div className="flex items-center gap-2 mb-3">
-                  {activeDocument.tags.map((tag) => (
-                    <Badge
-                      key={tag}
-                      variant="secondary"
-                      className="cursor-pointer"
-                      onClick={() => handleRemoveTag(tag)}
-                    >
-                      #{tag} ×
-                    </Badge>
-                  ))}
-                  <Button variant="outline" size="sm" onClick={() => handleAddTag(activeDocument.id)}>
-                    + Tag
-                  </Button>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={toggleViewMode}>
-                    {viewMode === "code" ? (
-                      <>
-                        <Eye className="w-4 h-4 mr-2" />
-                        Preview
-                      </>
-                    ) : viewMode === "preview" ? (
-                      <>
-                        <Code className="w-4 h-4 mr-2" />
-                        Split
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="w-4 h-4 mr-2" />
-                        Code
-                      </>
-                    )}
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        <Download className="w-4 h-4 mr-2" />
-                        Export
-                      </Button>
-                    </DropdownMenuTrigger>
+                <Button variant="outline" size="sm" onClick={toggleViewMode}>
+                  {viewMode === "code" ? (
+                    <>
+                      <Eye className="w-3.5 h-3.5 mr-1.5" />
+                      Preview
+                    </>
+                  ) : viewMode === "preview" ? (
+                    <>
+                      <Code className="w-3.5 h-3.5 mr-1.5" />
+                      Split
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="w-3.5 h-3.5 mr-1.5" />
+                      Code
+                    </>
+                  )}
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setShareDialogOpen(true)}>
+                  <Share2 className="w-3.5 h-3.5 mr-1.5" />
+                  Share
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Download className="w-3.5 h-3.5 mr-1.5" />
+                      Export
+                    </Button>
+                  </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48 bg-popover border-border z-50">
                       <DropdownMenuItem onClick={exportAsMarkdown}>Download as .md</DropdownMenuItem>
                       <DropdownMenuItem onClick={exportAsPDF}>Export as PDF</DropdownMenuItem>
                       <DropdownMenuItem onClick={exportAsWord}>Export as Word (.doc)</DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleExportWorkspace}>Export Workspace (.zip)</DropdownMenuItem>
                     </DropdownMenuContent>
-                  </DropdownMenu>
-                  <Button variant="outline" size="sm" onClick={() => setShareDialogOpen(true)}>
-                    <Share2 className="w-4 h-4 mr-2" />
-                    Share
+                </DropdownMenu>
+              </div>
+            )}
+
+            <div className="ml-auto flex items-center gap-2">
+              <ThemeToggle />
+              <Button variant="outline" size="sm" onClick={() => setSandboxOpen(true)}>
+                <Network className="w-4 h-4 mr-2" />
+                Diagram Editor
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Archive className="w-4 h-4 mr-2" />
+                    Workspace
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48 bg-popover border-border z-50">
+                  <DropdownMenuItem onClick={handleExportWorkspace}>
+                    <Download className="w-4 h-4 mr-2" />
+                    Export Workspace
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleImportWorkspace}>
+                    <Upload className="w-4 h-4 mr-2" />
+                    Import Workspace
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </header>
+        )}
+
+        {/* Main Layout */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Sidebar */}
+          {!isFocusMode && (
+            <DocumentSidebar
+              onDocumentSelect={handleDocumentSelect}
+              onNewDocument={handleNewDocument}
+              onDeleteDocument={handleDeleteDocument}
+              onRenameDocument={handleRenameDocument}
+              onTogglePin={handleTogglePin}
+              onAddTag={handleAddTag}
+              onMoveDocument={handleMoveDocument}
+              onCreateFolder={handleCreateFolder}
+              onDeleteFolder={handleDeleteFolder}
+              onRenameFolder={handleRenameFolder}
+              activeDocumentId={activeDocument?.id || null}
+              currentFolderId={activeDocument?.folderId || null}
+            />
+          )}
+
+        {/* Main Content */}
+        <main className="flex-1 overflow-auto">
+          {!activeDocument ? (
+            <LandingHero
+              onOpenFile={handleOpenMarkdownFile}
+              onPasteRender={handlePasteRender}
+              onCreateNew={() => handleNewDocument(null)}
+              fileInputRef={localFileInputRef}
+            />
+          ) : (
+            <div className="h-full flex flex-col bg-muted/20">
+              {/* Document Sub-Header Strip */}
+              <div className="px-6 py-2 border-b border-border/40 bg-card/40 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <Input
+                    ref={titleInputRef}
+                    value={activeDocument.title}
+                    onChange={(e) => updateDocumentTitle(e.target.value)}
+                    className="text-lg font-semibold border-none shadow-none focus-visible:ring-0 px-0 h-8 max-w-md truncate"
+                  />
+                  <div className="hidden sm:flex items-center gap-1.5">
+                    {activeDocument.tags.map((tag) => (
+                      <Badge
+                        key={tag}
+                        variant="secondary"
+                        className="cursor-pointer text-[11px] px-2 py-0.5"
+                        onClick={() => handleRemoveTag(tag)}
+                      >
+                        #{tag} ×
+                      </Badge>
+                    ))}
+                    <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground px-2" onClick={() => handleAddTag(activeDocument.id)}>
+                      + Tag
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Button
+                    variant={isFocusMode ? "secondary" : "ghost"}
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setIsFocusMode((prev) => !prev)}
+                    title="Toggle Focus Mode (Hotkey: F)"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5 mr-1" />
+                    Focus
                   </Button>
                 </div>
               </div>
 
-              {/* Content Area */}
-              <div className="flex-1 overflow-auto p-6">
-                {viewMode === "split" ? (
-                  <div className="flex gap-4 h-full">
-                    <div className="flex-1 min-w-0">
+              {/* Content Area & TOC */}
+              <div className="flex-1 flex min-h-0 overflow-hidden">
+                <div className="flex-1 overflow-auto">
+                  {viewMode === "split" ? (
+                    <div className="flex gap-4 h-full p-6">
+                      <div className="flex-1 min-w-0">
+                        <Textarea
+                          value={activeDocument.content}
+                          onChange={(e) => updateDocumentContent(e.target.value)}
+                          className="min-h-full h-full font-mono text-sm bg-code-bg text-code-text resize-none"
+                          placeholder="Type your Markdown here..."
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0 overflow-auto bg-card border border-border/60 rounded-xl shadow-md p-6">
+                        <Suspense fallback={<div className="p-4 text-muted-foreground text-center animate-pulse">Loading preview...</div>}>
+                          <MarkdownPreview content={activeDocument.content} />
+                        </Suspense>
+                      </div>
+                    </div>
+                  ) : viewMode === "preview" ? (
+                    <div className="py-8 px-4 sm:px-8 max-w-5xl mx-auto w-full">
+                      <div className={`bg-card border border-border/60 rounded-xl shadow-lg p-6 sm:p-12 reader-font-${readerSettings.fontSize} reader-width-${readerSettings.lineWidth} reader-family-${readerSettings.fontFamily || "sans"}`}>
+                        <Suspense fallback={<div className="p-4 text-muted-foreground text-center animate-pulse">Loading preview...</div>}>
+                          <MarkdownPreview content={activeDocument.content} />
+                        </Suspense>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="h-full p-6">
                       <Textarea
                         value={activeDocument.content}
                         onChange={(e) => updateDocumentContent(e.target.value)}
@@ -758,84 +944,30 @@ const Index = () => {
                         placeholder="Type your Markdown here..."
                       />
                     </div>
-                    <div className="flex-1 min-w-0 border-l border-border pl-4">
-                      <div className="markdown-preview">
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
-                          components={{
-                            code(props) {
-                              const { children, className, ...rest } = props;
-                              const match = /language-(\w+)/.exec(className || "");
+                  )}
+                </div>
 
-                              if (match && match[1] === "mermaid") {
-                                return <MermaidDiagram chart={String(children).replace(/\n$/, "")} />;
-                              }
-
-                              return match ? (
-                                <SyntaxHighlighter
-                                  // @ts-expect-error - SyntaxHighlighter type definition issue
-                                  style={oneDark}
-                                  language={match[1]}
-                                  PreTag="div"
-                                >
-                                  {String(children).replace(/\n$/, "")}
-                                </SyntaxHighlighter>
-                              ) : (
-                                <code className={className} {...rest}>
-                                  {children}
-                                </code>
-                              );
-                            },
-                          }}
-                        >
-                          {activeDocument.content}
-                        </ReactMarkdown>
-                      </div>
-                    </div>
-                  </div>
-                ) : viewMode === "preview" ? (
-                  <div className="markdown-preview">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        code(props) {
-                          const { children, className, ...rest } = props;
-                          const match = /language-(\w+)/.exec(className || "");
-
-                          if (match && match[1] === "mermaid") {
-                            return <MermaidDiagram chart={String(children).replace(/\n$/, "")} />;
-                          }
-
-                          return match ? (
-                            <SyntaxHighlighter
-                              // @ts-expect-error - SyntaxHighlighter type definition issue
-                              style={oneDark}
-                              language={match[1]}
-                              PreTag="div"
-                            >
-                              {String(children).replace(/\n$/, "")}
-                            </SyntaxHighlighter>
-                          ) : (
-                            <code className={className} {...rest}>
-                              {children}
-                            </code>
-                          );
-                        },
-                      }}
-                    >
-                      {activeDocument.content}
-                    </ReactMarkdown>
-                  </div>
-                ) : (
-                  <Textarea
-                    value={activeDocument.content}
-                    onChange={(e) => updateDocumentContent(e.target.value)}
-                    className="min-h-full font-mono text-sm bg-code-bg text-code-text resize-none"
-                    placeholder="Type your Markdown here..."
+                {showToc && (
+                  <TableOfContents
+                    markdown={activeDocument.content}
+                    onClose={() => setShowToc(false)}
                   />
                 )}
               </div>
             </div>
+          )}
+
+          {/* Floating Exit Focus Button */}
+          {isFocusMode && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="fixed top-4 right-4 z-50 shadow-md opacity-80 hover:opacity-100 transition-opacity"
+              onClick={() => setIsFocusMode(false)}
+            >
+              <Minimize2 className="w-4 h-4 mr-2" />
+              Exit Focus (Esc)
+            </Button>
           )}
         </main>
       </div>
@@ -868,93 +1000,28 @@ const Index = () => {
         </Dialog>
 
         {/* Secure Share Dialog */}
-        <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
-          <DialogContent className="bg-card border-border max-w-xl">
-            <DialogHeader>
-              <DialogTitle>Secure Share (Local-First)</DialogTitle>
-            </DialogHeader>
-
-            <div className="space-y-5">
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Create secure share</p>
-                <Input
-                  type="password"
-                  value={sharePassphrase}
-                  onChange={(e) => setSharePassphrase(e.target.value)}
-                  placeholder="Passphrase (min 8 characters)"
-                  className="bg-background border-input text-foreground"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Encryption is client-side only. Share the passphrase separately.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" onClick={handleCopySecureLink} disabled={!activeDocument}>
-                    Copy Secure Link
-                  </Button>
-                  <Button variant="outline" onClick={handleDownloadEncryptedShareFile} disabled={!activeDocument}>
-                    Download Encrypted File (.smdshare)
-                  </Button>
-                </div>
-                {!activeDocument && (
-                  <p className="text-xs text-muted-foreground">Open a document to enable sharing.</p>
-                )}
-              </div>
-
-              <div className="border-t border-border pt-4 space-y-2">
-                <p className="text-sm font-medium">Import secure share</p>
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" onClick={handleImportEncryptedShareFile}>
-                    Import .smdshare File
-                  </Button>
-                </div>
-                <Input
-                  type="password"
-                  value={importPassphrase}
-                  onChange={(e) => setImportPassphrase(e.target.value)}
-                  placeholder="Import passphrase"
-                  className="bg-background border-input text-foreground"
-                />
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={handlePreviewImportedShare} disabled={!pendingImportEnvelope}>
-                    Decrypt & Preview
-                  </Button>
-                  {pendingImportEnvelope && (
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        setPendingImportEnvelope(null);
-                        setImportPreview(null);
-                        clearSharedPayloadFromUrl();
-                      }}
-                    >
-                      Clear Loaded Share
-                    </Button>
-                  )}
-                </div>
-                {importPreview && (
-                  <Card className="p-3 bg-muted/40 border-border">
-                    <p className="font-medium truncate">{importPreview.title || "Imported Document"}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {importPreview.content.length} chars • {importPreview.tags.length} tags
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-2 line-clamp-3 whitespace-pre-wrap">
-                      {importPreview.content.slice(0, SHARE_PREVIEW_MAX_CHARS)}
-                    </p>
-                  </Card>
-                )}
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShareDialogOpen(false)}>
-                Close
-              </Button>
-              <Button onClick={handleSaveImportedDocument} disabled={!importPreview}>
-                Save as New Document
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <ShareDialog
+          open={shareDialogOpen}
+          onOpenChange={setShareDialogOpen}
+          activeDocument={activeDocument}
+          sharePassphrase={sharePassphrase}
+          setSharePassphrase={setSharePassphrase}
+          importPassphrase={importPassphrase}
+          setImportPassphrase={setImportPassphrase}
+          pendingImportEnvelope={pendingImportEnvelope}
+          importPreview={importPreview}
+          handleCopySecureLink={handleCopySecureLink}
+          handleDownloadEncryptedShareFile={handleDownloadEncryptedShareFile}
+          handleImportEncryptedShareFile={handleImportEncryptedShareFile}
+          handlePreviewImportedShare={handlePreviewImportedShare}
+          handleSaveImportedDocument={handleSaveImportedDocument}
+          clearImportState={() => {
+            setPendingImportEnvelope(null);
+            setImportPreview(null);
+            clearSharedPayloadFromUrl();
+          }}
+          previewMaxChars={SHARE_PREVIEW_MAX_CHARS}
+        />
         
         {/* Mermaid Sandbox Modal */}
         <MermaidSandbox open={sandboxOpen} onOpenChange={setSandboxOpen} />

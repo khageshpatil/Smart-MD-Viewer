@@ -83,9 +83,12 @@ export const DocumentSidebar = ({
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [renameDialog, setRenameDialog] = useState<{ type: "doc" | "folder"; id: string; name: string } | null>(null);
 
-  // Load data
+  // Load data & subscribe to workspace updates
   useEffect(() => {
     loadData();
+    const handleWorkspaceUpdate = () => loadData();
+    window.addEventListener("workspace-updated", handleWorkspaceUpdate);
+    return () => window.removeEventListener("workspace-updated", handleWorkspaceUpdate);
   }, []);
 
   const loadData = async () => {
@@ -190,9 +193,19 @@ export const DocumentSidebar = ({
             <ContextMenu>
               <ContextMenuTrigger>
                 <div
-                  className="group flex items-center gap-2 px-3 py-2 hover:bg-sidebar-accent cursor-pointer rounded-md transition-colors"
+                  role="treeitem"
+                  aria-expanded={isExpanded}
+                  aria-label={`Folder: ${folder.name}`}
+                  tabIndex={0}
+                  className="group flex items-center gap-2 px-3 py-2 hover:bg-sidebar-accent cursor-pointer rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-primary outline-none"
                   style={{ paddingLeft: `${depth * 12 + 12}px` }}
                   onClick={() => toggleFolder(folder.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      toggleFolder(folder.id);
+                    }
+                  }}
                   title="Right-click for options"
                 >
                   {isExpanded ? (
@@ -235,11 +248,21 @@ export const DocumentSidebar = ({
           <ContextMenu key={doc.id}>
             <ContextMenuTrigger>
               <div
-                className={`flex items-center gap-2 px-3 py-2 hover:bg-sidebar-accent cursor-pointer rounded-md transition-colors ${
-                  isActive ? "bg-sidebar-accent" : ""
+                role="treeitem"
+                aria-selected={isActive}
+                aria-label={`Document: ${doc.title}`}
+                tabIndex={0}
+                className={`flex items-center gap-2 px-3 py-2 hover:bg-sidebar-accent cursor-pointer rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-primary outline-none ${
+                  isActive ? "bg-sidebar-accent font-medium" : ""
                 }`}
                 style={{ paddingLeft: `${depth * 12 + 28}px` }}
                 onClick={() => onDocumentSelect(doc)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onDocumentSelect(doc);
+                  }
+                }}
               >
                 <FileText className="w-4 h-4 text-sidebar-foreground/60" />
                 <span className="text-sm flex-1 truncate text-sidebar-foreground">{doc.title}</span>
@@ -284,6 +307,7 @@ export const DocumentSidebar = ({
           <Input
             type="text"
             placeholder="Search documents..."
+            aria-label="Search documents"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9 bg-sidebar-accent border-sidebar-border text-sidebar-foreground placeholder:text-sidebar-foreground/60"
@@ -351,6 +375,7 @@ export const DocumentSidebar = ({
                 className="h-6 w-6" 
                 onClick={() => onNewDocument(null)}
                 title="New Document"
+                aria-label="Create new document at root"
               >
                 <FileText className="w-3 h-3" />
               </Button>
@@ -360,6 +385,7 @@ export const DocumentSidebar = ({
                 className="h-6 w-6" 
                 onClick={() => onCreateFolder(null)}
                 title="New Folder"
+                aria-label="Create new folder at root"
               >
                 <FolderPlus className="w-3 h-3" />
               </Button>
@@ -431,4 +457,8 @@ export const DocumentSidebar = ({
       )}
     </Sidebar>
   );
+};
+
+export const notifyWorkspaceUpdated = () => {
+  window.dispatchEvent(new CustomEvent("workspace-updated"));
 };
