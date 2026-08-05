@@ -3,7 +3,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here.
 All colors MUST be HSL.
 */
 
@@ -113,6 +113,7 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    font-family: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
@@ -182,20 +183,91 @@ All colors MUST be HSL.
   }
 }
 
-/* Reader typography, font size & width utility overrides */
-.reader-font-sm { font-size: 0.9375rem !important; line-height: 1.7 !important; }
-.reader-font-md { font-size: 1.0625rem !important; line-height: 1.75 !important; }
-.reader-font-lg { font-size: 1.1875rem !important; line-height: 1.8 !important; }
-.reader-font-xl { font-size: 1.3125rem !important; line-height: 1.85 !important; }
+/* ============================================================
+   READER TYPOGRAPHY — Font size & width utility overrides
+   ============================================================ */
+.reader-font-sm  { font-size: 0.9375rem  !important; line-height: 1.7  !important; }
+.reader-font-md  { font-size: 1.0625rem  !important; line-height: 1.75 !important; }
+.reader-font-lg  { font-size: 1.1875rem  !important; line-height: 1.8  !important; }
+.reader-font-xl  { font-size: 1.3125rem  !important; line-height: 1.85 !important; }
 
-.reader-width-compact { max-width: 60ch !important; }
-.reader-width-standard { max-width: 72ch !important; }
-.reader-width-wide { max-width: 90ch !important; }
-.reader-width-full { max-width: 100% !important; }
+.reader-width-compact  { max-width: 60ch  !important; }
+.reader-width-standard { max-width: 72ch  !important; }
+.reader-width-wide     { max-width: 90ch  !important; }
+.reader-width-full     { max-width: 100%  !important; }
 
-.reader-family-sans { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important; }
-.reader-family-serif { font-family: Georgia, Cambria, "Times New Roman", Times, serif !important; }
-.reader-family-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important; }
+/* Font family overrides */
+.reader-family-sans  {
+  font-family: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+}
+.reader-family-serif {
+  /* Premium: Fraunces for headings feel, Source Serif 4 for body readability */
+  font-family: "Fraunces", "Source Serif 4", Georgia, Cambria, "Times New Roman", Times, serif !important;
+}
+.reader-family-mono  {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace !important;
+}
+
+/* ============================================================
+   SEPIA READING TONE
+   Applies warm parchment styling to the document card.
+   Light mode only — has no effect in dark mode.
+   ============================================================ */
+:root:not(.dark) .reader-tone-sepia {
+  background-color: #f7f0e6 !important;
+  border-color: #e8d9c5 !important;
+  color: #3a2c1e !important;
+}
+
+:root:not(.dark) .reader-tone-sepia .markdown-preview,
+:root:not(.dark) .reader-tone-sepia .markdown-preview p,
+:root:not(.dark) .reader-tone-sepia .markdown-preview li,
+:root:not(.dark) .reader-tone-sepia .markdown-preview td {
+  color: #3a2c1e !important;
+}
+
+:root:not(.dark) .reader-tone-sepia .markdown-preview h1,
+:root:not(.dark) .reader-tone-sepia .markdown-preview h2,
+:root:not(.dark) .reader-tone-sepia .markdown-preview h3,
+:root:not(.dark) .reader-tone-sepia .markdown-preview h4 {
+  color: #2a1c0e !important;
+}
+
+:root:not(.dark) .reader-tone-sepia .markdown-preview a {
+  color: #7b4f2e !important;
+}
+
+:root:not(.dark) .reader-tone-sepia .markdown-preview blockquote {
+  border-left-color: #c4a882 !important;
+  color: #5c4033 !important;
+}
+
+:root:not(.dark) .reader-tone-sepia .markdown-preview code {
+  background-color: #ede3d4 !important;
+  color: #3a2c1e !important;
+  border-color: #d4bc9e !important;
+}
+
+:root:not(.dark) .reader-tone-sepia .markdown-preview table th {
+  background-color: #ede3d4 !important;
+  border-color: #d4bc9e !important;
+  color: #2a1c0e !important;
+}
+
+:root:not(.dark) .reader-tone-sepia .markdown-preview table td {
+  border-color: #d4bc9e !important;
+  color: #3a2c1e !important;
+}
+
+:root:not(.dark) .reader-tone-sepia .markdown-preview table tr:hover td {
+  background-color: #f0e6d6 !important;
+}
+
+/* Dark mode sepia: subtle warm tint without breaking contrast */
+.dark .reader-tone-sepia {
+  background-color: hsl(30 15% 12%) !important;
+  border-color: hsl(30 15% 22%) !important;
+}
 
 /* ============================================================
    PRINT STYLES

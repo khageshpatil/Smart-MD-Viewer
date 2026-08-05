@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
 export default defineConfig(({ mode }) => ({
-  base: process.env.VITE_BASE || '/Smart-MD-Viewer/',
+  base: mode === 'production' ? '/Smart-MD-Viewer/' : '/',
   server: {
     host: "::",
     port: 8080,
