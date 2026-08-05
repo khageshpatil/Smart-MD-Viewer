@@ -189,27 +189,29 @@ const Index = () => {
   }, []);
 
   const handleOpenMarkdownFile = () => {
-    if (localFileInputRef.current) {
-      localFileInputRef.current.click();
-    }
+    localFileInputRef.current?.click();
   };
 
-  useEffect(() => {
-    const input = localFileInputRef.current;
-    if (!input) return;
-    const handleChange = async (e: Event) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-      try {
-        const content = await file.text();
-        const title = file.name.replace(/\.md(?:own)?$/i, "") || "Opened File";
-        handlePasteRender(content, title);
-      } catch { /* ignore */ }
-      input.value = "";
-    };
-    input.addEventListener("change", handleChange);
-    return () => input.removeEventListener("change", handleChange);
-  }, [handlePasteRender]);
+  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const content = await file.text();
+      const title = file.name.replace(/\.md(?:own)?$/i, "") || "Opened File";
+      handlePasteRender(content, title);
+      toast({
+        title: "File opened",
+        description: `Loaded "${file.name}"`,
+      });
+    } catch {
+      toast({
+        title: "Failed to open file",
+        description: "Could not read the selected file.",
+        variant: "destructive",
+      });
+    }
+    e.target.value = "";
+  };
 
   useEffect(() => {
     const handleWindowDrop = async (e: DragEvent) => {
@@ -1417,6 +1419,15 @@ em{font-style:italic;}
           </DialogContent>
         </Dialog>
       </div>
+      {/* Hidden File Input for Open File Button */}
+      <input
+        type="file"
+        ref={localFileInputRef}
+        accept=".md,.markdown,text/markdown,text/plain"
+        onChange={handleFileInputChange}
+        className="hidden"
+      />
+
       {/* Google Drive Connection & Settings Modal */}
       <GoogleDriveConnectModal
         open={googleDriveModalOpen}
