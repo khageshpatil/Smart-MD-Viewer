@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Agent Layer runtime artifacts (activity log and snapshots are per-machine)
+.claude/md-activity.jsonl
+.claude/md-activity-*.jsonl
+.claude/md-snapshots/

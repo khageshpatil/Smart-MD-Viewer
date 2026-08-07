@@ -81,10 +81,62 @@ export function ShareDialog({
                 value={sharePassphrase}
                 onChange={(e) => setSharePassphrase(e.target.value)}
                 placeholder="Passphrase (min 8 characters)"
-                className="bg-background border-input text-foreground"
+                className="bg-background border-input text-foreground font-mono"
               />
+              {sharePassphrase.length > 0 && (
+                <div className="space-y-1">
+                  {(() => {
+                    const len = sharePassphrase.length;
+                    const hasNum = /\d/.test(sharePassphrase);
+                    const hasSym = /[^a-zA-Z0-9]/.test(sharePassphrase);
+                    const hasUpper = /[A-Z]/.test(sharePassphrase);
+                    let score = 0;
+                    if (len >= 8) score += 1;
+                    if (len >= 12) score += 1;
+                    if (hasNum) score += 1;
+                    if (hasSym || hasUpper) score += 1;
+
+                    const label =
+                      len < 8
+                        ? "Too short (min 8 chars)"
+                        : score <= 1
+                        ? "Weak"
+                        : score === 2
+                        ? "Fair"
+                        : score === 3
+                        ? "Strong"
+                        : "Excellent";
+
+                    const color =
+                      len < 8
+                        ? "bg-red-500 text-red-500"
+                        : score <= 1
+                        ? "bg-amber-500 text-amber-500"
+                        : score === 2
+                        ? "bg-yellow-500 text-yellow-600 dark:text-yellow-400"
+                        : score === 3
+                        ? "bg-emerald-500 text-emerald-500"
+                        : "bg-blue-500 text-blue-500";
+
+                    const width =
+                      len < 8 ? "w-1/5" : score === 1 ? "w-2/5" : score === 2 ? "w-3/5" : score === 3 ? "w-4/5" : "w-full";
+
+                    return (
+                      <div className="space-y-1">
+                        <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                          <div className={`h-full ${color.split(" ")[0]} ${width} transition-all duration-300`} />
+                        </div>
+                        <div className="flex justify-between items-center text-[11px]">
+                          <span className={`font-medium ${color.split(" ").slice(1).join(" ")}`}>{label}</span>
+                          <span className="text-muted-foreground">{len} characters</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
               <p className="text-xs text-muted-foreground">
-                AES-GCM encryption runs entirely in your browser. Passphrase is required to decrypt.
+                AES-GCM Web Crypto encryption runs 100% locally in your browser. Passphrase is required to decrypt.
               </p>
             </div>
 

@@ -24,9 +24,11 @@ import {
 const MermaidSandbox = lazy(() => import("@/components/MermaidSandbox").then((module) => ({ default: module.MermaidSandbox })));
 const MarkdownPreview = lazy(() => import("@/components/MarkdownPreview").then((module) => ({ default: module.MarkdownPreview })));
 import { LandingHero } from "@/components/LandingHero";
+import { TableOfContents } from "@/components/TableOfContents";
 import { DocumentSidebar, notifyWorkspaceUpdated } from "@/components/DocumentSidebar";
 import { ReaderControls, getSavedReaderSettings, ReaderSettings } from "@/components/ReaderControls";
 import { ShareDialog } from "@/components/ShareDialog";
+import { MarkdownEditor } from "@/components/MarkdownEditor";
 import {
   GoogleUser,
   getStoredGoogleUser,
@@ -67,6 +69,40 @@ import {
 const MAX_SHARE_LINK_LENGTH = 7000; // Conservative URL limit to avoid browser/client truncation.
 const SHARE_PREVIEW_MAX_CHARS = 260;
 
+/**
+ * Extracts a human-readable title from Markdown content.
+ * Priority: frontmatter `title:` → first `# H1` → first non-empty text line → "Untitled"
+ */
+function extractMarkdownTitle(content: string): string {
+  const lines = content.split("\n");
+
+  // 1. Check YAML frontmatter for a title field
+  if (lines[0]?.trim() === "---") {
+    for (let i = 1; i < Math.min(lines.length, 20); i++) {
+      const line = lines[i].trim();
+      if (line === "---" || line === "...") break;
+      const match = line.match(/^title:\s*["']?(.+?)["']?\s*$/);
+      if (match) return match[1].trim();
+    }
+  }
+
+  // 2. First H1 heading
+  for (const line of lines) {
+    const match = line.match(/^#\s+(.+)/);
+    if (match) return match[1].replace(/\*|_|`/g, "").trim();
+  }
+
+  // 3. First non-empty, non-heading line of actual prose
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed && !trimmed.startsWith("#") && !trimmed.startsWith("---") && !trimmed.startsWith("```")) {
+      return trimmed.replace(/\*|_|`|\[|\]/g, "").slice(0, 60);
+    }
+  }
+
+  return "Untitled";
+}
+
 const Index = () => {
   const [activeDocument, setActiveDocument] = useState<Document | null>(null);
   const [viewMode, setViewMode] = useState<"preview" | "code" | "split">("preview");
@@ -96,32 +132,69 @@ const Index = () => {
   const [isExportingGoogleDoc, setIsExportingGoogleDoc] = useState(false);
   const [isUploadingToDrive, setIsUploadingToDrive] = useState(false);
 
-  // Initialize IndexedDB
+  // Initialize IndexedDB and restore last active document on refresh
   useEffect(() => {
-    initDB();
+    const init = async () => {
+      await initDB();
 
-    if (!hasProcessedSharedHashRef.current) {
-      hasProcessedSharedHashRef.current = true;
-      const sharedPayload = parsePayloadFromLocationHash(window.location.hash);
-      if (sharedPayload) {
-        try {
-          const envelope = decodeEnvelopeFromShareLink(sharedPayload);
-          setPendingImportEnvelope(envelope);
-          setShareDialogOpen(true);
-          toast({
-            title: "Shared link detected",
-            description: "Enter the import passphrase to preview and save this document.",
-          });
-        } catch {
-          toast({
-            title: "Invalid shared link",
-            description: "The shared payload is malformed or unsupported.",
-            variant: "destructive",
-          });
+      if (!hasProcessedSharedHashRef.current) {
+        hasProcessedSharedHashRef.current = true;
+        const sharedPayload = parsePayloadFromLocationHash(window.location.hash);
+
+        if (sharedPayload) {
+          // Shared link takes priority over last-active restoration
+          try {
+            const envelope = decodeEnvelopeFromShareLink(sharedPayload);
+            setPendingImportEnvelope(envelope);
+            setShareDialogOpen(true);
+            toast({
+              title: "Shared link detected",
+              description: "Enter the import passphrase to preview and save this document.",
+            });
+          } catch {
+            toast({
+              title: "Invalid shared link",
+              description: "The shared payload is malformed or unsupported.",
+              variant: "destructive",
+            });
+          }
+        } else {
+          // Restore last active workspace document after refresh
+          const lastDocId = localStorage.getItem("smartmd-last-doc-id");
+          if (lastDocId) {
+            try {
+              const doc = await getDocument(lastDocId);
+              if (doc) {
+                setActiveDocument(doc);
+                const savedMode = localStorage.getItem("smartmd-view-mode") as "preview" | "code" | "split" | null;
+                if (savedMode) setViewMode(savedMode);
+              } else {
+                // Document was deleted — clear the stale ID
+                localStorage.removeItem("smartmd-last-doc-id");
+              }
+            } catch {
+              localStorage.removeItem("smartmd-last-doc-id");
+            }
+          }
         }
       }
-    }
+    };
+
+    init();
   }, [toast]);
+
+  // Persist active document ID and view mode so refresh restores the session
+  useEffect(() => {
+    if (activeDocument && !isUnsavedFile) {
+      localStorage.setItem("smartmd-last-doc-id", activeDocument.id);
+    } else if (!activeDocument) {
+      localStorage.removeItem("smartmd-last-doc-id");
+    }
+  }, [activeDocument, isUnsavedFile]);
+
+  useEffect(() => {
+    localStorage.setItem("smartmd-view-mode", viewMode);
+  }, [viewMode]);
 
   useEffect(() => () => {
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -172,11 +245,12 @@ const Index = () => {
     }
   };
 
-  const handlePasteRender = useCallback((content: string, title = "Pasted Markdown") => {
+  const handlePasteRender = useCallback((content: string, title?: string) => {
+    const resolvedTitle = title?.trim() || extractMarkdownTitle(content);
     const now = Date.now();
     setActiveDocument({
       id: `local-${crypto.randomUUID()}`,
-      title,
+      title: resolvedTitle,
       content,
       folderId: null,
       tags: [],
@@ -923,31 +997,37 @@ em{font-style:italic;}
       <div className="min-h-screen bg-background flex flex-col w-full">
         {/* ─── LANDING NAV (no document open) ─── */}
         {!isFocusMode && !activeDocument && (
-          <header className="sticky top-0 z-20 border-b border-border/50 bg-background/80 backdrop-blur-md">
-            <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center">
-                  <FileText className="w-4 h-4 text-primary-foreground" />
+          <header className="sticky top-0 z-20 border-b border-zinc-200/80 dark:border-zinc-800/80 bg-white/80 dark:bg-[#09090B]/85 backdrop-blur-md transition-colors duration-200">
+            <div className="max-w-7xl mx-auto px-6 h-15 flex items-center justify-between">
+              {/* Logo */}
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-blue-600 dark:bg-blue-500 flex items-center justify-center shrink-0 shadow-md shadow-blue-500/20">
+                  <FileText className="w-4 h-4 text-white" />
                 </div>
-                <span className="font-bold text-sm tracking-tight">Smart MD</span>
-                <span className="hidden sm:inline text-xs text-muted-foreground/60 font-medium px-1.5 py-0.5 bg-muted rounded">
-                  Local-first · Private
+                <span className="font-bold text-sm tracking-tight text-zinc-900 dark:text-white">
+                  Smart MD
+                </span>
+                <span className="hidden sm:inline text-[11px] font-mono text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-900 px-2 py-0.5 rounded border border-zinc-200 dark:border-zinc-800">
+                  Local-First
                 </span>
               </div>
-              <div className="flex items-center gap-2">
+
+              {/* Actions */}
+              <div className="flex items-center gap-3">
                 <ThemeToggle />
-                <Button variant="ghost" size="sm" onClick={() => setSandboxOpen(true)} className="hidden sm:flex gap-1.5">
-                  <Network className="w-3.5 h-3.5" />
-                  Diagrams
-                </Button>
-                <Button size="sm" onClick={handleOpenMarkdownFile} className="gap-1.5">
-                  <FolderOpen className="w-3.5 h-3.5" />
-                  Open File
-                </Button>
+                <button
+                  onClick={() => handleNewDocument(null)}
+                  className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white font-semibold text-xs sm:text-sm px-4 py-2 rounded-lg transition-all shadow-sm"
+                >
+                  Open Workspace →
+                </button>
               </div>
             </div>
           </header>
         )}
+
+
+
 
         {/* ─── APP HEADER (document open) ─── */}
         {!isFocusMode && activeDocument && (
@@ -957,8 +1037,17 @@ em{font-style:italic;}
               <SidebarTrigger className="h-8 w-8 p-0 border-0 hover:bg-accent" />
             )}
             <div className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-primary" />
-              <h1 className="text-base font-bold tracking-tight">Smart MD</h1>
+              <button
+                onClick={() => {
+                  setActiveDocument(null);
+                  localStorage.removeItem("smartmd-last-doc-id");
+                }}
+                className="flex items-center gap-1.5 hover:opacity-70 transition-opacity cursor-pointer"
+                title="Back to Home"
+              >
+                <FileText className="w-5 h-5 text-primary" />
+                <h1 className="text-base font-bold tracking-tight">Smart MD</h1>
+              </button>
               {activeDocument && (
                 <div className="flex items-center gap-2 pl-2 border-l border-border">
                   <span className="text-xs font-medium text-muted-foreground max-w-[180px] truncate">
@@ -1001,28 +1090,51 @@ em{font-style:italic;}
                   <Copy className="w-3.5 h-3.5 mr-1.5" />
                   Copy Raw
                 </Button>
-                <Button variant="outline" size="sm" onClick={toggleViewMode}>
-                  {viewMode === "code" ? (
-                    <>
-                      <Eye className="w-3.5 h-3.5 mr-1.5" />
-                      Preview
-                    </>
-                  ) : viewMode === "preview" ? (
-                    <>
-                      <Code className="w-3.5 h-3.5 mr-1.5" />
-                      Split
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="w-3.5 h-3.5 mr-1.5" />
-                      Code
-                    </>
-                  )}
-                </Button>
+                {/* 3-Tab View Mode Switcher */}
+                <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border/80 text-xs">
+                  <button
+                    onClick={() => setViewMode("code")}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-all font-medium ${
+                      viewMode === "code"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    title="Code Only View"
+                  >
+                    <Code className="w-3.5 h-3.5" />
+                    Code
+                  </button>
+                  <button
+                    onClick={() => setViewMode("split")}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-all font-medium ${
+                      viewMode === "split"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    title="Side-by-Side Split View"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    Split
+                  </button>
+                  <button
+                    onClick={() => setViewMode("preview")}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-all font-medium ${
+                      viewMode === "preview"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    title="Formatted Preview View"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    Preview
+                  </button>
+                </div>
+
                 <Button variant="outline" size="sm" onClick={() => setShareDialogOpen(true)}>
                   <Share2 className="w-3.5 h-3.5 mr-1.5" />
                   Share
                 </Button>
+
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm">
@@ -1030,10 +1142,13 @@ em{font-style:italic;}
                       Export
                     </Button>
                   </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-60 bg-popover border-border z-50">
+                    <DropdownMenuContent align="end" className="w-64 bg-popover border-border z-50">
                       {/* ── Docs integrations ── */}
                       <div className="px-2 py-1.5">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1">Send to Docs</p>
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Send to Docs</p>
+                          <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium">Direct via OAuth</span>
+                        </div>
                         <button
                           onClick={copyAsRichText}
                           className="w-full flex items-center gap-2.5 px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground transition-colors text-left"
@@ -1054,7 +1169,7 @@ em{font-style:italic;}
                           <div>
                             <p className="font-medium leading-none mb-0.5">Create Google Doc</p>
                             <p className="text-[10px] text-muted-foreground">
-                              {googleUser ? `Native doc for ${googleUser.email.split("@")[0]}` : "1-click native Google Doc"}
+                              {googleUser ? `Native doc for ${googleUser.email.split("@")[0]}` : "Direct browser-to-Google OAuth"}
                             </p>
                           </div>
                         </button>
@@ -1067,7 +1182,7 @@ em{font-style:italic;}
                           <span className="text-base">☁️</span>
                           <div>
                             <p className="font-medium leading-none mb-0.5">Save to Google Drive</p>
-                            <p className="text-[10px] text-muted-foreground">Upload .md file to Drive</p>
+                            <p className="text-[10px] text-muted-foreground">Direct upload (Smart MD servers never touch your file)</p>
                           </div>
                         </button>
                       </div>
@@ -1258,12 +1373,12 @@ em{font-style:italic;}
                 <div className="flex-1 overflow-auto">
                   {viewMode === "split" ? (
                     <div className="flex gap-4 h-full p-6">
-                      <div className="flex-1 min-w-0">
-                        <Textarea
+                      <div className="flex-1 min-w-0 h-full">
+                        <MarkdownEditor
                           value={activeDocument.content}
-                          onChange={(e) => updateDocumentContent(e.target.value)}
-                          className="min-h-full h-full font-mono text-sm bg-code-bg text-code-text resize-none"
+                          onChange={updateDocumentContent}
                           placeholder="Type your Markdown here..."
+                          className="h-full"
                         />
                       </div>
                       <div className={`flex-1 min-w-0 overflow-auto bg-card border border-border/60 rounded-xl shadow-md p-6 reader-font-${readerSettings.fontSize} reader-family-${readerSettings.fontFamily || "sans"}`}>
@@ -1282,11 +1397,11 @@ em{font-style:italic;}
                     </div>
                   ) : (
                     <div className="h-full p-6">
-                      <Textarea
+                      <MarkdownEditor
                         value={activeDocument.content}
-                        onChange={(e) => updateDocumentContent(e.target.value)}
-                        className="min-h-full h-full font-mono text-sm bg-code-bg text-code-text resize-none"
+                        onChange={updateDocumentContent}
                         placeholder="Type your Markdown here..."
+                        className="h-full"
                       />
                     </div>
                   )}

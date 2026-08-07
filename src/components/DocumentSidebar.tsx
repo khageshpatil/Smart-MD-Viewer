@@ -13,6 +13,7 @@ import {
   Edit2,
   Pin,
   Tag as TagIcon,
+  ArrowUpDown,
 } from "lucide-react";
 import {
   Sidebar,
@@ -112,26 +113,37 @@ export const DocumentSidebar = ({
     }
   }, [activeDocumentId, documents]);
 
-  // Search functionality
-  const filteredDocs = useMemo(async () => {
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "title">("newest");
+
+  // Search & Filter & Sort functionality (Full-text content search + Tags + Sort)
+  const displayedDocs = useMemo(() => {
+    let result = [...documents];
+
+    // Search query (Title + Content + Tags)
     if (searchQuery.trim()) {
-      return await searchDocuments(searchQuery);
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter(
+        (doc) =>
+          doc.title.toLowerCase().includes(q) ||
+          doc.content.toLowerCase().includes(q) ||
+          doc.tags.some((t) => t.toLowerCase().includes(q))
+      );
     }
+
+    // Tag filter
     if (selectedTag) {
-      return documents.filter((doc) => doc.tags.includes(selectedTag));
+      result = result.filter((doc) => doc.tags.includes(selectedTag));
     }
-    return documents;
-  }, [searchQuery, documents, selectedTag]);
 
-  const [displayedDocs, setDisplayedDocs] = useState<Document[]>([]);
+    // Sort order
+    result.sort((a, b) => {
+      if (sortBy === "newest") return b.updatedAt - a.updatedAt;
+      if (sortBy === "oldest") return a.updatedAt - b.updatedAt;
+      return a.title.localeCompare(b.title);
+    });
 
-  useEffect(() => {
-    if (filteredDocs instanceof Promise) {
-      filteredDocs.then(setDisplayedDocs);
-    } else {
-      setDisplayedDocs(filteredDocs);
-    }
-  }, [filteredDocs]);
+    return result;
+  }, [documents, searchQuery, selectedTag, sortBy]);
 
   // All unique tags
   const allTags = useMemo(() => {
@@ -376,6 +388,18 @@ export const DocumentSidebar = ({
               <span className="text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/80">My Documents</span>
             </div>
             <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-1.5 text-[10px] gap-1 text-muted-foreground hover:text-foreground"
+                onClick={() =>
+                  setSortBy((prev) => (prev === "newest" ? "oldest" : prev === "oldest" ? "title" : "newest"))
+                }
+                title={`Sorted by ${sortBy}. Click to cycle.`}
+              >
+                <ArrowUpDown className="w-3 h-3" />
+                <span className="capitalize">{sortBy}</span>
+              </Button>
               <Button 
                 variant="ghost" 
                 size="icon" 
