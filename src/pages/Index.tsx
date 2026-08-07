@@ -34,6 +34,7 @@ import {
   getStoredGoogleUser,
   createNativeGoogleDoc,
   uploadMarkdownFileToDrive,
+  exportWorkspaceToGoogleDrive,
 } from "@/services/googleDrive";
 import { GoogleDriveConnectModal } from "@/components/GoogleDriveConnectModal";
 import {
@@ -780,6 +781,53 @@ em{font-style:italic;}
     }
   };
 
+  const handleExportWorkspaceToDrive = async () => {
+    if (!googleUser) {
+      setGoogleDriveModalOpen(true);
+      toast({
+        title: "Google Connect Required",
+        description: "Please connect your Google account to export your workspace to Google Drive.",
+      });
+      return;
+    }
+
+    toast({
+      title: "Exporting Workspace to Google Drive...",
+      description: "Creating folders and uploading files...",
+    });
+
+    try {
+      const result = await exportWorkspaceToGoogleDrive(googleUser.accessToken, (progress) => {
+        toast({
+          title: `Uploading (${progress.current}/${progress.total})`,
+          description: `Uploading "${progress.currentItem}"...`,
+        });
+      });
+      window.open(result.folderUrl, "_blank");
+      toast({
+        title: "Workspace Exported to Drive! ☁️",
+        description: `Exported ${result.totalFiles} files into Google Drive folder. Opened in a new tab.`,
+      });
+    } catch (err: any) {
+      if (err?.message?.includes("invalid_grant") || err?.message?.includes("401")) {
+        setGoogleUser(null);
+        setGoogleDriveModalOpen(true);
+        toast({
+          title: "Session Expired",
+          description: "Please re-connect your Google Account.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Export Failed",
+          description: err?.message || "Failed to export workspace to Google Drive",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+
   const handleImportWorkspace = () => {
     const input = document.createElement("input");
     input.type = "file";
@@ -1268,14 +1316,18 @@ em{font-style:italic;}
                     Workspace
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48 bg-popover border-border z-50">
+                <DropdownMenuContent align="end" className="w-56 bg-popover border-border z-50">
+                  <DropdownMenuItem onClick={handleExportWorkspaceToDrive}>
+                    <span className="mr-2">☁️</span>
+                    Export Workspace to Drive
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleExportWorkspace}>
                     <Download className="w-4 h-4 mr-2" />
-                    Export Workspace
+                    Export Local Backup (.zip)
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleImportWorkspace}>
                     <Upload className="w-4 h-4 mr-2" />
-                    Import Workspace
+                    Import Local Backup (.zip)
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

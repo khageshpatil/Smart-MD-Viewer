@@ -213,20 +213,62 @@ export async function createNativeGoogleDoc(
   return { id: fileData.id, webViewLink };
 }
 
+import { getAllDocuments, getAllFolders } from "@/lib/indexedDB";
+
 /**
- * Uploads raw Markdown content to Google Drive
+ * Creates a folder in Google Drive API v3
+ */
+export async function createGoogleDriveFolder(
+  accessToken: string,
+  folderName: string,
+  parentFolderId?: string
+): Promise<{ id: string; webViewLink?: string }> {
+  const metadata: any = {
+    name: folderName,
+    mimeType: "application/vnd.google-apps.folder",
+  };
+  if (parentFolderId) {
+    metadata.parents = [parentFolderId];
+  }
+
+  const response = await fetch(
+    "https://www.googleapis.com/drive/v3/files?fields=id,name,webViewLink",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(metadata),
+    }
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData?.error?.message || "Failed to create folder in Google Drive");
+  }
+
+  return await response.json();
+}
+
+/**
+ * Uploads raw Markdown content to Google Drive (with optional parentFolderId)
  */
 export async function uploadMarkdownFileToDrive(
   accessToken: string,
   title: string,
-  markdownContent: string
+  markdownContent: string,
+  parentFolderId?: string
 ): Promise<{ id: string; webViewLink: string }> {
-  const fileName = title.endsWith(".md") ? title : `${title}.md`;
+  const fileName = title.endsWith(".md") || title.endsWith(".json") ? title : `${title}.md`;
 
-  const metadata = {
+  const metadata: any = {
     name: fileName,
-    mimeType: "text/markdown",
+    mimeType: title.endsWith(".json") ? "application/json" : "text/markdown",
   };
+  if (parentFolderId) {
+    metadata.parents = [parentFolderId];
+  }
 
   const boundary = "-------314159265358979323846";
   const delimiter = `\r\n--${boundary}\r\n`;
@@ -237,7 +279,7 @@ export async function uploadMarkdownFileToDrive(
     "Content-Type: application/json; charset=UTF-8\r\n\r\n" +
     JSON.stringify(metadata) +
     delimiter +
-    "Content-Type: text/markdown; charset=UTF-8\r\n\r\n" +
+    `Content-Type: ${title.endsWith(".json") ? "application/json" : "text/markdown"}; charset=UTF-8\r\n\r\n` +
     markdownContent +
     closeDelimiter;
 
@@ -264,3 +306,95 @@ export async function uploadMarkdownFileToDrive(
 
   return { id: fileData.id, webViewLink };
 }
+
+/**
+ * Exports the entire IndexedDB workspace (all documents & folders) to Google Drive
+ */
+export async function exportWorkspaceToGoogleDrive(
+  accessToken: string,
+  onProgress?: (progress: { current: number; total: number; currentItem: string }) => void
+): Promise<{ rootFolderId: string; folderUrl: string; totalFiles: number }> {
+  const docs = await getAllDocuments();
+  const folders = await getAllFolders();
+
+  if (docs.length === 0 && folders.length === 0) {
+    throw new Error("Workspace is empty. Create or import some documents first.");
+  }
+
+  const timestamp = new Date().toISOString().slice(0, 10);
+  const rootDriveFolder = await createGoogleDriveFolder(
+    accessToken,
+    `Smart MD Workspace (${timestamp})`
+  );
+
+  // Map local folder ID -> Google Drive folder ID
+  const driveFolderMap = new Map<string, string>();
+
+  // Helper to resolve & create nested folder hierarchy in Google Drive
+  const getOrCreateDriveFolder = async (folderId: string): Promise<string> => {
+    if (driveFolderMap.has(folderId)) {
+      return driveFolderMap.get(folderId)!;
+    }
+
+    const localFolder = folders.find((f) => f.id === folderId);
+    if (!localFolder) {
+      return rootDriveFolder.id;
+    }
+
+    let parentDriveId = rootDriveFolder.id;
+    if (localFolder.parentId) {
+      parentDriveId = await getOrCreateDriveFolder(localFolder.parentId);
+    }
+
+    const createdDriveFolder = await createGoogleDriveFolder(
+      accessToken,
+      localFolder.name,
+      parentDriveId
+    );
+
+    driveFolderMap.set(folderId, createdDriveFolder.id);
+    return createdDriveFolder.id;
+  };
+
+  // Pre-create folder structures
+  for (const f of folders) {
+    await getOrCreateDriveFolder(f.id);
+  }
+
+  const total = docs.length;
+  let count = 0;
+
+  // Upload each document into its corresponding Google Drive folder
+  for (const doc of docs) {
+    count++;
+    if (onProgress) {
+      onProgress({ current: count, total, currentItem: doc.title });
+    }
+
+    const parentDriveId = doc.folderId
+      ? await getOrCreateDriveFolder(doc.folderId)
+      : rootDriveFolder.id;
+
+    await uploadMarkdownFileToDrive(accessToken, doc.title, doc.content, parentDriveId);
+  }
+
+  // Backup workspace JSON schema into root Drive folder
+  const workspaceBackupData = JSON.stringify({ documents: docs, folders }, null, 2);
+  await uploadMarkdownFileToDrive(
+    accessToken,
+    "workspace_backup.json",
+    workspaceBackupData,
+    rootDriveFolder.id
+  );
+
+  const folderUrl =
+    rootDriveFolder.webViewLink ||
+    `https://drive.google.com/drive/folders/${rootDriveFolder.id}`;
+
+  return {
+    rootFolderId: rootDriveFolder.id,
+    folderUrl,
+    totalFiles: docs.length,
+  };
+}
+

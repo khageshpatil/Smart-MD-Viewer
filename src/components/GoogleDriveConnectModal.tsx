@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ShieldCheck, LogOut, Key, RefreshCw, Settings2 } from "lucide-react";
-import { GoogleUser, requestGoogleAuth, clearGoogleUser, getStoredClientId, setStoredClientId } from "@/services/googleDrive";
+import { ShieldCheck, LogOut, Key, RefreshCw, Settings2, FolderArchive, ExternalLink } from "lucide-react";
+import { GoogleUser, requestGoogleAuth, clearGoogleUser, getStoredClientId, setStoredClientId, exportWorkspaceToGoogleDrive } from "@/services/googleDrive";
 
 interface GoogleDriveConnectModalProps {
   open: boolean;
@@ -24,6 +24,27 @@ export function GoogleDriveConnectModal({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [clientIdInput, setClientIdInput] = useState(getStoredClientId());
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  
+  const [isExportingWorkspace, setIsExportingWorkspace] = useState(false);
+  const [exportProgressMsg, setExportProgressMsg] = useState("");
+  const [exportResultUrl, setExportResultUrl] = useState<string | null>(null);
+
+  const handleExportWorkspaceDrive = async () => {
+    if (!currentUser) return;
+    setIsExportingWorkspace(true);
+    setErrorMsg(null);
+    try {
+      const res = await exportWorkspaceToGoogleDrive(currentUser.accessToken, (progress) => {
+        setExportProgressMsg(`Uploading ${progress.current}/${progress.total}: "${progress.currentItem}"`);
+      });
+      setExportResultUrl(res.folderUrl);
+    } catch (err: any) {
+      setErrorMsg(err?.message || "Failed to export workspace to Google Drive");
+    } finally {
+      setIsExportingWorkspace(false);
+    }
+  };
+
 
   const handleConnect = async () => {
     setLoading(true);
@@ -100,6 +121,55 @@ export function GoogleDriveConnectModal({
                 </div>
                 <p className="text-xs text-muted-foreground truncate">{currentUser.email}</p>
               </div>
+            </div>
+
+            {/* Workspace Export Card */}
+            <div className="p-3.5 rounded-xl border border-primary/20 bg-primary/5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+                    <FolderArchive className="w-4 h-4 text-primary" />
+                    Export Full Workspace to Drive
+                  </h4>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Uploads all your local documents & folder hierarchy into a dedicated folder on Google Drive.
+                  </p>
+                </div>
+              </div>
+
+              {exportResultUrl ? (
+                <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between">
+                  <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5">
+                    <ExternalLink className="w-3.5 h-3.5" /> Workspace Exported!
+                  </span>
+                  <a
+                    href={exportResultUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+                  >
+                    Open Drive Folder ↗
+                  </a>
+                </div>
+              ) : (
+                <Button
+                  onClick={handleExportWorkspaceDrive}
+                  disabled={isExportingWorkspace}
+                  className="w-full gap-2 h-9 text-xs font-semibold"
+                >
+                  {isExportingWorkspace ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      {exportProgressMsg || "Exporting Workspace..."}
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-sm">📁</span>
+                      Export Whole Workspace to Drive
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
 
             <div className="p-3 rounded-lg bg-muted/40 border border-border/60 text-xs text-muted-foreground space-y-2">
